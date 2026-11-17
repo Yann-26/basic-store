@@ -38,7 +38,7 @@ function fakePayments(initial: StoredPayment[] = []) {
 
 type GatewayAnswer = { status: string; amount: number; currency: string | null; channel: string | null; paidAt: string | null }
 
-function setup(opts: { order?: Partial<Order>; payments?: StoredPayment[]; paystack?: Partial<GatewayAnswer>; validSignature?: boolean; series?: Record<string, { size: number; numbered: number }> } = {}) {
+function setup(opts: { order?: Partial<Order>; payments?: StoredPayment[]; paystack?: Partial<GatewayAnswer>; validSignature?: boolean } = {}) {
   const order = {
     id: ORDER_ID,
     preorder_number: 'TRS-2026-ABCDEFGH',
@@ -62,16 +62,6 @@ function setup(opts: { order?: Partial<Order>; payments?: StoredPayment[]; payst
       order.amount_paid = paid
       order.payment_status = paid >= order.total_price ? 'paid' : paid > 0 ? 'deposit_paid' : amount < 0 ? 'refunded' : order.payment_status
       return { amount_paid: paid, total_price: order.total_price, payment_status: order.payment_status }
-    }),
-    // Same as the number_order_pieces SQL function: next numbers of the series, once per line.
-    numberPieces: vi.fn(async () => {
-      for (const item of order.order_items ?? []) {
-        const series = opts.series?.[item.product_id ?? '']
-        if (!series || (item.piece_numbers ?? []).length > 0) continue
-        item.piece_numbers = Array.from({ length: item.quantity }, (_, i) => series.numbered + i + 1)
-        series.numbered += item.quantity
-      }
-      return (order.order_items ?? []).map((i) => ({ order_item_id: i.id!, product_id: i.product_id, piece_numbers: i.piece_numbers ?? [], series_size: opts.series?.[i.product_id ?? '']?.size ?? null }))
     }),
   } as unknown as OrderRepository
   const { rows, repo } = fakePayments(opts.payments)
@@ -104,15 +94,15 @@ describe('payments.initialize — the Paystack checkout', () => {
   it('refuses orders without an owner to customers, allows admins', async () => {
     const { payments } = setup({ order: { user_id: null } })
     await expect(payments.initialize({ orderId: ORDER_ID }, owner)).rejects.toMatchObject({ status: 404 })
-    await expect(payments.initialize({ orderId: ORDER_ID }, admin)).resolves.toMatchObject({ amount: 7000 })
+    await expect(payments.initialize({ orderId: ORDER_ID }, admin)).resolves.toMatchObject({ amount: 20000 })
   })
 
-  it('opens Paystack for the amount decided by the server, ignoring any client amount', async () => {
+  it('opens Paystack for everything still due, decided by the server, ignoring any client amount', async () => {
     const { payments, rows, gateway } = setup()
     const res = await payments.initialize({ orderId: ORDER_ID, amount: 1 } as never, owner)
-    expect(res).toMatchObject({ amount: 7000, kind: 'deposit', authorization_url: expect.stringContaining('checkout.paystack.com') })
-    expect(gateway.initialize).toHaveBeenCalledWith(expect.objectContaining({ amount: 7000, email: 'owner@test.ci', callbackUrl: 'https://shop.test/payment/callback' }))
-    expect(rows[0]).toMatchObject({ amount: 7000, kind: 'deposit', method: 'paystack', status: 'pending' })
+    expect(res).toMatchObject({ amount: 20000, kind: 'deposit', authorization_url: expect.stringContaining('checkout.paystack.com') })
+    expect(gateway.initialize).toHaveBeenCalledWith(expect.objectContaining({ amount: 20000, email: 'owner@test.ci', callbackUrl: 'https://shop.test/payment/callback' }))
+    expect(rows[0]).toMatchObject({ amount: 20000, kind: 'deposit', method: 'paystack', status: 'pending' })
   })
 
   it('then the balance, once something was paid', async () => {
@@ -126,7 +116,7 @@ describe('payments.initialize — the Paystack checkout', () => {
     const second = await payments.initialize({ orderId: ORDER_ID }, owner)
     expect(second.reference).toBe(first.reference)
     expect(rows).toHaveLength(1)
-    expect(first.reference).toMatch(/^SC-\d+-[A-Z0-9]{8}$/)
+    expect(first.reference).toMatch(/^BS-\d+-[A-Z0-9]{8}$/)
   })
 
   it('marks the payment failed when Paystack cannot open the checkout', async () => {
@@ -293,29 +283,5 @@ describe('payments.remind', () => {
 
   it('has nothing to remind once paid at 100 %', async () => {
     await expect(setup({ order: { amount_paid: 20000 } }).payments.remind(ORDER_ID)).rejects.toMatchObject({ status: 409 })
-  })
-})
-
-describe('numbered pieces', () => {
-  const items = [{ id: 'i1', product_id: 'tee', product_name: 'T-shirt Noir', product_price: 10000, size: 'M', quantity: 2, piece_numbers: [] }]
-
-  it('numbers the pieces with the first payment, says so in the timeline and the receipt, and only once', async () => {
-    const { payments, orderRepo, mailer, rows, gateway } = setup({ order: { order_items: structuredClone(items) }, payments: [pending({ reference: 'SC-1-AAAAAAAA', method: 'paystack' })], series: { tee: { size: 50, numbered: 26 } } })
-    await payments.verify('SC-1-AAAAAAAA')
-    expect(orderRepo.addTracking).toHaveBeenCalledWith(expect.objectContaining({ notes: 'Pièces numérotées : T-shirt Noir N° 27 et 28 / 50' }))
-    expect(mailer.send).toHaveBeenCalledWith(expect.objectContaining({ html: expect.stringContaining('N° 27 et 28 / 50') }))
-
-    // The balance later: the pieces keep their numbers, nothing new is announced.
-    rows.push(pending({ id: 'p1', reference: 'SC-2-BBBBBBBB', amount: 13000, kind: 'balance', method: 'paystack' }))
-    gateway.verify.mockResolvedValueOnce({ status: 'success', amount: 13000, currency: 'XOF', channel: 'card', paidAt: null })
-    vi.mocked(orderRepo.addTracking).mockClear()
-    expect((await payments.verify('SC-2-BBBBBBBB')).status).toBe('success')
-    expect(vi.mocked(orderRepo.addTracking).mock.calls.some(([e]) => String(e.notes).includes('numérotées'))).toBe(false)
-  })
-
-  it('leaves pieces outside a numbered series alone', async () => {
-    const { payments, orderRepo } = setup({ order: { order_items: structuredClone(items) }, payments: [pending({ reference: 'SC-1-AAAAAAAA', method: 'paystack' })] })
-    await payments.verify('SC-1-AAAAAAAA')
-    expect(vi.mocked(orderRepo.addTracking).mock.calls.some(([e]) => String(e.notes).includes('numérotées'))).toBe(false)
   })
 })

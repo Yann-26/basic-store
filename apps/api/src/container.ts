@@ -28,7 +28,7 @@ import { PaystackGateway } from '@/infrastructure/payments/paystack.gateway'
 import { JwtTokenService } from '@/infrastructure/security/jwt-token.service'
 import { GoogleRecaptchaVerifier } from '@/infrastructure/security/recaptcha.verifier'
 import { TotpTwoFactorCrypto } from '@/infrastructure/security/totp'
-import { SupabaseBrandRepository, SupabaseCollectionRepository, SupabaseExclusiveRepository } from '@/infrastructure/supabase/repositories/catalog.repository'
+import { SupabaseBrandRepository, SupabaseCollectionRepository } from '@/infrastructure/supabase/repositories/catalog.repository'
 import { SupabaseContactRepository } from '@/infrastructure/supabase/repositories/contact.repository'
 import { SupabaseCustomerRepository } from '@/infrastructure/supabase/repositories/customer.repository'
 import { SupabaseInstagramRepository } from '@/infrastructure/supabase/repositories/instagram.repository'
@@ -49,15 +49,14 @@ import { makeAudienceUseCases } from '@/application/use-cases/audience'
 import { makePromoUseCases } from '@/application/use-cases/promo'
 import { SupabasePromoRepository } from '@/infrastructure/supabase/repositories/promo.repository'
 import { makeReviewUseCases } from '@/application/use-cases/reviews'
-import { makeDropUseCases } from '@/application/use-cases/drops'
+import { makeStockUseCases } from '@/application/use-cases/stock'
 import { SupabaseReviewRepository } from '@/infrastructure/supabase/repositories/review.repository'
-import { SupabaseDropRepository } from '@/infrastructure/supabase/repositories/drop.repository'
+import { SupabaseStockRepository } from '@/infrastructure/supabase/repositories/stock.repository'
 
 export const repos = {
   products: new SupabaseProductRepository(),
   brands: new SupabaseBrandRepository(),
   collections: new SupabaseCollectionRepository(),
-  exclusives: new SupabaseExclusiveRepository(),
   customers: new SupabaseCustomerRepository(),
   orders: new SupabaseOrderRepository(),
   payments: new SupabasePaymentRepository(),
@@ -72,7 +71,7 @@ export const repos = {
   visits: new SupabaseVisitRepository(),
   promos: new SupabasePromoRepository(),
   reviews: new SupabaseReviewRepository(),
-  drops: new SupabaseDropRepository(),
+  stock: new SupabaseStockRepository(),
 }
 
 export const services = {
@@ -111,12 +110,12 @@ const reviews = makeReviewUseCases({ ...repos, mailer: services.mailer, config: 
 export const useCases = {
   promo,
   reviews,
-  drops: makeDropUseCases({ ...repos, mailer: services.mailer, config }),
+  stock: makeStockUseCases(repos),
   account,
   audience: makeAudienceUseCases({ visits: repos.visits, hashVisitor }),
   auth: makeAuthUseCases({ users: repos.users, tokens: services.tokens, twoFactor: services.twoFactor, notify, verificationToken: account.newVerificationToken }),
   catalog: makeCatalogUseCases(repos),
-  products: makeProductAdminUseCases({ products: repos.products, storage: services.storage, announce: (p) => newsletterUseCases.announceProduct(p), config: { supabaseUrl: env.supabaseUrl } }),
+  products: makeProductAdminUseCases({ products: repos.products, storage: services.storage, announce: (p) => newsletterUseCases.announceProduct(p) }),
   orders: makeOrderUseCases({ ...repos, mailer: services.mailer, config, promo, reviews }),
   payments: makePaymentUseCases({ ...repos, gateway: services.gateway, mailer: services.mailer, config }),
   customers: makeCustomerUseCases(repos),

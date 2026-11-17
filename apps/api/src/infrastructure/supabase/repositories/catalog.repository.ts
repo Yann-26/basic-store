@@ -1,5 +1,5 @@
-import type { Brand, Collection, Exclusive } from '@trs/shared'
-import type { BrandRepository, CollectionRepository, ExclusiveRepository } from '@/application/ports'
+import type { Brand, Collection } from '@trs/shared'
+import type { BrandRepository, CollectionRepository } from '@/application/ports'
 import { db, unwrap } from '../client'
 
 type Row = Record<string, unknown>
@@ -7,11 +7,6 @@ type Row = Record<string, unknown>
 function toCollection(row: Row): Collection {
   const { brands, ...rest } = row
   return { ...(rest as unknown as Collection), brand: (brands as Collection['brand']) ?? null }
-}
-
-function toExclusive(row: Row): Exclusive {
-  const { brands, ...rest } = row
-  return { ...(rest as unknown as Exclusive), brand: (brands as Exclusive['brand']) ?? null }
 }
 
 export class SupabaseBrandRepository implements BrandRepository {
@@ -85,47 +80,5 @@ export class SupabaseCollectionRepository implements CollectionRepository {
 
   async delete(id: string) {
     unwrap(await db().from('collections').delete().eq('id', id), 'collections.delete')
-  }
-}
-
-export class SupabaseExclusiveRepository implements ExclusiveRepository {
-  private readonly select = '*, brands(id, name, slug)'
-
-  async list(opts: { activeOnly?: boolean } = {}) {
-    let query = db().from('exclusives').select(this.select).order('sort_order').order('name')
-    if (opts.activeOnly) query = query.eq('is_active', true)
-    return ((unwrap(await query, 'exclusives.list') ?? []) as Row[]).map(toExclusive)
-  }
-
-  async findById(id: string) {
-    const row = unwrap(await db().from('exclusives').select(this.select).eq('id', id).maybeSingle(), 'exclusives.findById')
-    return row ? toExclusive(row as Row) : null
-  }
-
-  async findBySlug(slug: string) {
-    const row = unwrap(await db().from('exclusives').select(this.select).eq('slug', slug).maybeSingle(), 'exclusives.findBySlug')
-    return row ? toExclusive(row as Row) : null
-  }
-
-  async countByBrand(brandId: string) {
-    const { count } = await db().from('exclusives').select('id', { count: 'exact', head: true }).eq('brand_id', brandId)
-    return count ?? 0
-  }
-
-  async create(data: Omit<Exclusive, 'id' | 'created_at' | 'brand'>) {
-    return toExclusive(unwrap(await db().from('exclusives').insert(data).select(this.select).single(), 'exclusives.create') as Row)
-  }
-
-  async update(id: string, data: Partial<Omit<Exclusive, 'id' | 'created_at' | 'brand'>>) {
-    return toExclusive(
-      unwrap(
-        await db().from('exclusives').update({ ...data, updated_at: new Date().toISOString() }).eq('id', id).select(this.select).single(),
-        'exclusives.update',
-      ) as Row,
-    )
-  }
-
-  async delete(id: string) {
-    unwrap(await db().from('exclusives').delete().eq('id', id), 'exclusives.delete')
   }
 }

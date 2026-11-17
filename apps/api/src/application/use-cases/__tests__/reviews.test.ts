@@ -1,8 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Drop, Order, Product, ProductReview, SessionUser } from '@trs/shared'
+import type { Order, Product, ProductReview, SessionUser } from '@trs/shared'
 import { makeReviewUseCases } from '../reviews'
-import { makeDropUseCases } from '../drops'
-import type { DropRepository, Mailer, OrderRepository, ProductRepository, ReviewRepository, ReviewWrite, SettingsRepository } from '../../ports'
+import type { Mailer, OrderRepository, ProductRepository, ReviewRepository, ReviewWrite } from '../../ports'
 
 const PRODUCT_ID = '11111111-1111-4111-8111-111111111111'
 const product = { id: PRODUCT_ID, name: 'Sacoche', slug: 'sacoche', price: 20000, is_active: true, product_media: [] } as unknown as Product
@@ -81,63 +80,5 @@ describe('reviews', () => {
     const t = reviewSetup([])
     await t.useCases.inviteAfterDelivery(order('delivered'))
     expect(t.mailer.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'awa@test.ci', html: expect.stringContaining('/product/sacoche#avis') }))
-  })
-})
-
-describe('drops', () => {
-  const drop = (over: Partial<Drop>): Drop => ({ id: 'd1', title: 'Capsule 02', description: '', image_url: null, starts_at: new Date(Date.now() + 86_400_000).toISOString(), product_ids: [PRODUCT_ID], location: '', is_published: true, preorders_open: false, ...over })
-
-  function dropSetup(d: Drop, due: { id: string; email: string }[] = [], opts: { early?: { id: string; email: string }[]; listed?: boolean; settings?: Record<string, unknown> } = {}) {
-    const repo = {
-      dueEarlyAccess: vi.fn(async () => (opts.early?.length ? [{ drop: d, reminders: opts.early }] : [])),
-      markEarlyNotified: vi.fn(async () => {}),
-      hasEarlyAccess: vi.fn(async () => opts.listed ?? false),
-      findById: vi.fn(async () => d),
-      addReminder: vi.fn(async () => true),
-      list: vi.fn(async () => [d]),
-      dueReminders: vi.fn(async () => (due.length ? [{ drop: d, reminders: due }] : [])),
-      markReminded: vi.fn(async () => {}),
-    } as unknown as DropRepository
-    const m = mailer()
-    const useCases = makeDropUseCases({ drops: repo, products: { findManyByIds: vi.fn(async () => [product]) } as unknown as ProductRepository, mailer: m, settings: { getAll: vi.fn(async () => opts.settings ?? {}) } as unknown as SettingsRepository, config: { appUrl: 'https://shop.test' } })
-    return { useCases, repo, mailer: m }
-  }
-
-  it('takes reminders only for an upcoming, published drop', async () => {
-    expect(await dropSetup(drop({})).useCases.remind('d1', 'awa@test.ci')).toEqual({ success: true, already: false })
-    await expect(dropSetup(drop({ starts_at: new Date(Date.now() - 3_600_000).toISOString() })).useCases.remind('d1', 'a@b.ci')).rejects.toMatchObject({ status: 409 })
-    await expect(dropSetup(drop({ is_published: false })).useCases.remind('d1', 'a@b.ci')).rejects.toMatchObject({ status: 404 })
-  })
-
-  it('shows the calendar with the pieces', async () => {
-    const [d] = await dropSetup(drop({})).useCases.calendar()
-    expect(d?.products?.[0]).toMatchObject({ slug: 'sacoche', price: 20000 })
-  })
-
-  it('emails each waiting person once when the drop opens', async () => {
-    const t = dropSetup(drop({}), [{ id: 'm1', email: 'a@b.ci' }, { id: 'm2', email: 'c@d.ci' }])
-    expect(await t.useCases.processDueReminders()).toEqual({ drops: 1, sent: 2, early: 0 })
-    expect(t.repo.markReminded).toHaveBeenCalledWith(['m1', 'm2'])
-  })
-
-  it('emails the early access to the people on the list when it starts', async () => {
-    const t = dropSetup(drop({}), [], { early: [{ id: 'm1', email: 'a@b.ci' }] })
-    expect(await t.useCases.processDueReminders()).toMatchObject({ early: 1 })
-    expect(t.mailer.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'a@b.ci', subject: expect.stringContaining('accès anticipé'), html: expect.stringContaining('24 h avant') }))
-    expect(t.repo.markEarlyNotified).toHaveBeenCalledWith(['m1'])
-    expect(t.repo.dueEarlyAccess).toHaveBeenCalledWith(expect.any(String), 24, expect.any(Number))
-  })
-
-  it('tells a visitor where the drop stands and whether they are on the list', async () => {
-    const inTwelveHours = new Date(Date.now() + 12 * 3_600_000).toISOString()
-    const user = { id: 'u1', email: 'awa@test.ci' } as SessionUser
-    expect(await dropSetup(drop({ starts_at: inTwelveHours }), [], { listed: true }).useCases.access('d1', user)).toMatchObject({ access: 'early', eligible: true, hours: 24 })
-    expect(await dropSetup(drop({ starts_at: inTwelveHours }), [], { listed: false }).useCases.access('d1', user)).toMatchObject({ access: 'early', eligible: false })
-    expect(await dropSetup(drop({ starts_at: inTwelveHours }), [], { listed: true }).useCases.access('d1', null)).toMatchObject({ access: 'early', eligible: false })
-    // early access switched off in the back-office
-    expect(await dropSetup(drop({ starts_at: inTwelveHours }), [], { listed: true, settings: { drop_early_access_hours: 0 } }).useCases.access('d1', user)).toMatchObject({ access: 'closed', eligible: false })
-    expect(await dropSetup(drop({ starts_at: new Date(Date.now() - 60_000).toISOString() })).useCases.access('d1', null)).toMatchObject({ access: 'open', eligible: true })
-    // a drop taking reservations: open to everyone before its date
-    expect(await dropSetup(drop({ starts_at: inTwelveHours, preorders_open: true })).useCases.access('d1', null)).toMatchObject({ access: 'open', eligible: true })
   })
 })

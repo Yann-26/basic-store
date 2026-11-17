@@ -82,6 +82,8 @@ function setup(codes: PromoCode[], opts: { previousOrders?: Order[]; redeemOk?: 
     findById: vi.fn(async (id: string) => orders.find((o) => o.id === id) ?? null),
     update: vi.fn(async (id: string, patch: Partial<Order>) => Object.assign(orders.find((o) => o.id === id)!, patch)),
     listForAccount: vi.fn(async () => opts.previousOrders ?? []),
+    reserveStock: vi.fn(async () => {}),
+    releaseStock: vi.fn(async () => true),
   } as unknown as OrderRepository
   const customers: Customer[] = []
   const customerRepo = {
@@ -115,16 +117,16 @@ const account = { userId: 'u-friend', emailVerified: true, email: 'friend@test.c
 const checkout = (promo_code?: string) => ({
   customer: { firstName: 'Awa', lastName: 'Koné', phone: '0701020304', email: 'friend@test.ci', city: 'Abidjan', address: 'Cocody' },
   items: [{ product_id: PRODUCT.id, quantity: 2 }],
-  payment_method: 'wave',
+  payment_method: 'cash_on_delivery' as const,
+  delivery_zone: 'pickup' as const,
   promo_code,
 })
 
 describe('promo codes at checkout', () => {
   it('takes the discount off what is paid and records the use', async () => {
-    const t = setup([promo({})], { settings: { deposit_percentage: 60 } })
+    const t = setup([promo({})])
     const result = await t.orders.create(checkout(' bienvenue '), account)
-    // the deposit is taken on the discounted total, the balance follows before delivery
-    expect(result).toMatchObject({ subtotal_price: 40000, discount_amount: 4000, total_price: 36000, deposit_amount: 21600, remaining_amount: 14400, deposit_percentage: 60, promo_code: 'BIENVENUE' })
+    expect(result).toMatchObject({ subtotal_price: 40000, discount_amount: 4000, total_price: 36000, due_on_delivery: 36000, promo_code: 'BIENVENUE' })
     expect(t.redemptions).toEqual([{ codeId: 'p1', orderId: 'o1', userId: 'u-friend', amount: 4000 }])
   })
 

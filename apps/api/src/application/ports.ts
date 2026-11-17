@@ -11,7 +11,6 @@ import type {
   AdminUserQuery,
   AdminUserStats,
   Customer,
-  Exclusive,
   Order,
   OrderItem,
   OrderStatus,
@@ -29,7 +28,8 @@ import type {
   NewsletterCampaign,
   NewsletterStatus,
   PromoCode,
-  Drop,
+  StockMovement,
+  ManualStockReason,
   ProductReview,
   ReviewStatus,
 } from '@trs/shared'
@@ -38,7 +38,7 @@ import type {
 
 export type ProductWrite = Omit<
   Product,
-  'id' | 'brand' | 'collection' | 'exclusive' | 'product_media' | 'preorder_count' | 'pieces_numbered' | 'created_at' | 'updated_at'
+  'id' | 'brand' | 'collection' | 'product_media' | 'created_at' | 'updated_at'
 >
 
 export interface ProductRepository {
@@ -50,13 +50,8 @@ export interface ProductRepository {
   update(id: string, data: Partial<ProductWrite>): Promise<Product>
   delete(id: string): Promise<void>
   hasOrders(id: string): Promise<boolean>
-  /** Pieces of the product already paid in full (the preorder gauge). */
-  preorderPieces(id: string): Promise<number>
-  /** Orders of this piece with at least the deposit paid, placed since `since` (optional in tests). */
-  recentPreorders?(id: string, since: string): Promise<number>
   countByBrand(brandId: string): Promise<number>
   countByCollection(collectionId: string): Promise<number>
-  countByExclusive(exclusiveId: string): Promise<number>
   findMedia(mediaId: string): Promise<ProductMedia | null>
   listMedia(productId: string): Promise<ProductMedia[]>
   addMedia(media: Omit<ProductMedia, 'id'> & { product_id: string; file_size?: number; mime_type?: string }): Promise<ProductMedia>
@@ -81,16 +76,6 @@ export interface CollectionRepository {
   countByBrand(brandId: string): Promise<number>
   create(data: Omit<Collection, 'id' | 'created_at' | 'brand'>): Promise<Collection>
   update(id: string, data: Partial<Omit<Collection, 'id' | 'created_at' | 'brand'>>): Promise<Collection>
-  delete(id: string): Promise<void>
-}
-
-export interface ExclusiveRepository {
-  list(opts?: { activeOnly?: boolean }): Promise<Exclusive[]>
-  findById(id: string): Promise<Exclusive | null>
-  findBySlug(slug: string): Promise<Exclusive | null>
-  countByBrand(brandId: string): Promise<number>
-  create(data: Omit<Exclusive, 'id' | 'created_at' | 'brand'>): Promise<Exclusive>
-  update(id: string, data: Partial<Omit<Exclusive, 'id' | 'created_at' | 'brand'>>): Promise<Exclusive>
   delete(id: string): Promise<void>
 }
 
@@ -124,8 +109,10 @@ export interface NewOrder {
   estimated_delivery: string
   /** Account that placed the order. */
   user_id?: string | null
-  /** Basket before discount; total_price is what is paid. */
+  /** Basket before discount and delivery; total_price is what is paid. */
   subtotal_price?: number
+  delivery_zone?: string
+  delivery_fee?: number
   discount_amount?: number
   promo_code?: string | null
   /** Account whose referral code was used. */
@@ -159,8 +146,25 @@ export interface OrderRepository {
    * the payment status follows from the new amount paid.
    */
   applyPayment(orderId: string, amount: number): Promise<{ amount_paid: number; total_price: number; payment_status: string } | null>
-  /** Gives their series numbers to the order's numbered pieces that have none yet (idempotent). */
-  numberPieces(orderId: string): Promise<{ order_item_id: string; product_id: string | null; piece_numbers: number[]; series_size: number | null }[]>
+  /**
+   * Takes the stock of a freshly written order, all lines or none (atomic, once per order).
+   * Throws OutOfStockError when a line cannot be served.
+   */
+  reserveStock(orderId: string): Promise<void>
+  /** Online-payment orders still pending and unpaid, placed before `before`. */
+  listUnpaidOnline(before: string, limit: number): Promise<Order[]>
+  /** Puts an order's stock back (cancelled or returned); false when it was already given back. */
+  releaseStock(orderId: string, reason: 'cancel' | 'return'): Promise<boolean>
+}
+
+// --------------------------------------------------------------------- stock
+
+export interface StockRepository {
+  /** Moves one size of a product by hand; returns the new quantity of that size. Throws OutOfStockError below 0. */
+  adjust(input: { productId: string; size: string | null; delta: number; reason: ManualStockReason; note?: string | null; adminId: string }): Promise<number>
+  movements(opts: { productId?: string; page: number; limit: number }): Promise<{ items: StockMovement[]; total: number }>
+  /** Active products, lowest stock first (stock page, low-stock alerts). */
+  overview(opts: { search?: string; lowOnly?: boolean; page: number; limit: number }): Promise<{ items: Product[]; total: number }>
 }
 
 export interface PaymentRepository {
@@ -242,28 +246,6 @@ export interface ReviewRepository {
   update(id: string, patch: Partial<Pick<ProductReview, 'status' | 'admin_reply' | 'rating' | 'title' | 'body' | 'photo_url'>>): Promise<ProductReview>
   delete(id: string): Promise<void>
   countPending(): Promise<number>
-}
-
-export type DropWrite = Pick<Drop, 'title' | 'description' | 'image_url' | 'starts_at' | 'product_ids' | 'location' | 'is_published' | 'preorders_open'>
-
-export interface DropRepository {
-  list(opts: { publishedOnly: boolean; from?: string }): Promise<Drop[]>
-  findById(id: string): Promise<Drop | null>
-  create(data: DropWrite): Promise<Drop>
-  update(id: string, patch: Partial<DropWrite>): Promise<Drop>
-  delete(id: string): Promise<void>
-  /** Adds an email to warn (false when it was already there). */
-  addReminder(dropId: string, email: string): Promise<boolean>
-  /** Published drops that opened, with emails not yet warned. */
-  dueReminders(now: string, limit: number): Promise<{ drop: Drop; reminders: { id: string; email: string }[] }[]>
-  markReminded(reminderIds: string[]): Promise<void>
-  /** Published drops not opened yet. */
-  upcoming(now: string): Promise<Drop[]>
-  /** Whether this address asked for the drop ("Prévenez-moi") or subscribed to the newsletter before `before`. */
-  hasEarlyAccess(dropId: string, email: string, before: string): Promise<boolean>
-  /** Drops whose early access just started, with the reminders (made before it) not yet told. */
-  dueEarlyAccess(now: string, hours: number, limit: number): Promise<{ drop: Drop; reminders: { id: string; email: string }[] }[]>
-  markEarlyNotified(reminderIds: string[]): Promise<void>
 }
 
 // ------------------------------------------------------------------- others

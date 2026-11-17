@@ -51,6 +51,29 @@ export class ConflictError extends AppError {
   }
 }
 
+/** Not enough units on hand for a line (checkout or a stock movement). */
+export class OutOfStockError extends AppError {
+  constructor(
+    readonly productName: string,
+    readonly size: string | null,
+    readonly available: number,
+  ) {
+    const what = `« ${productName} »${size && size !== 'TU' ? ` (taille ${size})` : ''}`
+    super(
+      available > 0 ? `Il ne reste que ${available} pièce${available > 1 ? 's' : ''} de ${what}` : `${what} est en rupture de stock`,
+      409,
+      'OUT_OF_STOCK',
+      { productName, size, available },
+    )
+  }
+
+  /** Reads the error raised by the database functions: OUT_OF_STOCK:<name>:<size>:<available>. */
+  static fromDatabase(message: string | undefined): OutOfStockError | null {
+    const m = /OUT_OF_STOCK:(.*):([^:]*):(\d+)\s*$/.exec(message ?? '')
+    return m ? new OutOfStockError(m[1]!, m[2] || null, Number(m[3])) : null
+  }
+}
+
 export class TooManyRequestsError extends AppError {
   constructor(message = 'Trop de requêtes. Réessayez plus tard.') {
     super(message, 429, 'RATE_LIMITED')

@@ -3,19 +3,14 @@ import type { ProductRepository, ProductWrite } from '@/application/ports'
 import { db, safeSearchTerm, unwrap } from '../client'
 import { toProduct, toProductMedia } from '../mappers'
 
-const PRODUCT_SELECT = '*, product_media(*), brands(id, name, slug), collections(id, name, slug), exclusives(id, name, slug)'
+const PRODUCT_SELECT = '*, product_media(*), brands(id, name, slug), collections(id, name, slug)'
 /** Most products a shuffled listing ranks (Supabase returns at most 1000 rows per request). */
 const SHUFFLE_POOL = 1000
 
 interface Refs {
   brandId?: string
   collectionId?: string
-  exclusiveId?: string
 }
-
-/** Special values of `ProductListQuery.exclusive` (anything else is an exclusivité slug). */
-const EXCLUSIVE_ALL = 'all'
-const EXCLUSIVE_ONLY = 'only'
 
 export class SupabaseProductRepository implements ProductRepository {
   async list(q: ProductListQuery & { includeInactive?: boolean }) {
@@ -71,11 +66,6 @@ export class SupabaseProductRepository implements ProductRepository {
       if (!col) return null
       refs.collectionId = col.id
     }
-    if (q.exclusive && q.exclusive !== EXCLUSIVE_ALL && q.exclusive !== EXCLUSIVE_ONLY) {
-      const { data: ex } = await db().from('exclusives').select('id').eq('slug', q.exclusive).maybeSingle()
-      if (!ex) return null
-      refs.exclusiveId = ex.id
-    }
     return refs
   }
 
@@ -98,10 +88,6 @@ export class SupabaseProductRepository implements ProductRepository {
     }
     if (refs.brandId) query = query.eq('brand_id', refs.brandId)
     if (refs.collectionId) query = query.eq('collection_id', refs.collectionId)
-    // Exclusive pieces stay out of the regular listings unless explicitly asked for.
-    if (!q.exclusive) query = query.eq('is_exclusive', false)
-    else if (q.exclusive !== EXCLUSIVE_ALL) query = query.eq('is_exclusive', true)
-    if (refs.exclusiveId) query = query.eq('exclusive_id', refs.exclusiveId)
     if (q.search) {
       const term = safeSearchTerm(q.search)
       if (term) query = query.or(`name.ilike.%${term}%,subcategory.ilike.%${term}%,description.ilike.%${term}%`)
@@ -157,14 +143,6 @@ export class SupabaseProductRepository implements ProductRepository {
     return (count ?? 0) > 0
   }
 
-  async recentPreorders(id: string, since: string) {
-    return Number(unwrap(await db().rpc('recent_preorders', { p_product_id: id, p_since: since }), 'products.recentPreorders')) || 0
-  }
-
-  async preorderPieces(id: string) {
-    return Number(unwrap(await db().rpc('preorder_pieces', { p_product_id: id }), 'products.preorderPieces')) || 0
-  }
-
   async countByBrand(brandId: string) {
     const { count } = await db().from('products').select('id', { count: 'exact', head: true }).eq('brand_id', brandId)
     return count ?? 0
@@ -172,11 +150,6 @@ export class SupabaseProductRepository implements ProductRepository {
 
   async countByCollection(collectionId: string) {
     const { count } = await db().from('products').select('id', { count: 'exact', head: true }).eq('collection_id', collectionId)
-    return count ?? 0
-  }
-
-  async countByExclusive(exclusiveId: string) {
-    const { count } = await db().from('products').select('id', { count: 'exact', head: true }).eq('exclusive_id', exclusiveId)
     return count ?? 0
   }
 

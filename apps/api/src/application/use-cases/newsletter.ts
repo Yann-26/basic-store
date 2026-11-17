@@ -58,7 +58,7 @@ export function makeNewsletterUseCases(d: NewsletterDeps) {
   /** Catalogue used for recommendations, loaded once per run. */
   function catalogLoader() {
     let catalog: Promise<Product[]> | null = null
-    return () => (catalog ??= d.products.list({ exclusive: 'all', sort: 'newest', limit: 100 }).then((r) => r.items))
+    return () => (catalog ??= d.products.list({ sort: 'newest', limit: 100 }).then((r) => r.items))
   }
 
   async function recommendationsFor(recipient: Pick<NewsletterRecipient, 'email' | 'userId'>, blocks: NewsletterBlock[], catalog: () => Promise<Product[]>) {

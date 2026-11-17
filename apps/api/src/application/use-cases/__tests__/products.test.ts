@@ -3,10 +3,8 @@ import type { Product } from '@trs/shared'
 import { makeProductAdminUseCases } from '../products'
 import type { FileStorage, ProductRepository } from '../../ports'
 
-const GROUP = '11111111-1111-4111-8111-111111111111'
-
 function setup(existing: Partial<Product> = {}, announce = vi.fn(async () => undefined)) {
-  const product = { id: 'p1', name: 'Ja 4', slug: 'ja-4', price: 1000, category: 'shoes', status: 'available', stock: 1, sizes: [], colors: [], features: [], is_active: true, is_exclusive: false, exclusive_id: null, ...existing } as Product
+  const product = { id: 'p1', name: 'Ja 4', slug: 'ja-4', price: 1000, category: 'shoes', status: 'available', stock: 1, sizes: [], colors: [], features: [], is_active: true, ...existing } as Product
   const products = {
     findByIdOrSlug: vi.fn(async () => product),
     slugExists: vi.fn(async () => false),
@@ -19,29 +17,24 @@ function setup(existing: Partial<Product> = {}, announce = vi.fn(async () => und
   return { uc: makeProductAdminUseCases({ products, storage: {} as FileStorage, announce }), products, announce }
 }
 
-describe('product exclusivity', () => {
-  it('a piece put in an exclusivité becomes exclusive', async () => {
+describe('product stock', () => {
+  it('sets the first quantities per size on creation', async () => {
     const { uc, products } = setup()
-    await uc.update('p1', { exclusive_id: GROUP })
-    expect(products.update).toHaveBeenCalledWith('p1', expect.objectContaining({ is_exclusive: true, exclusive_id: GROUP }))
+    await uc.create({ name: 'Polo', price: 5000, category: 'clothing', sizes: ['m', 'L'], size_stock: { M: 4, XL: 9 } })
+    expect(products.create).toHaveBeenCalledWith(expect.objectContaining({ sizes: ['M', 'L'], size_stock: { M: 4, L: 0 } }))
   })
 
-  it('un-flagging a piece removes it from its exclusivité', async () => {
-    const { uc, products } = setup({ is_exclusive: true, exclusive_id: GROUP })
-    await uc.update('p1', { is_exclusive: false })
-    expect(products.update).toHaveBeenCalledWith('p1', expect.objectContaining({ is_exclusive: false, exclusive_id: null }))
+  it('never changes quantities when a product is edited (only through the stock)', async () => {
+    const { uc, products } = setup({ sizes: ['M'], size_stock: { M: 3 } })
+    await uc.update('p1', { stock: 99, size_stock: { M: 99 }, sizes: ['M', 'L'] })
+    expect(products.update).toHaveBeenCalledWith('p1', expect.objectContaining({ size_stock: { M: 3, L: 0 } }))
+    expect(vi.mocked(products.update).mock.calls[0]![1]).not.toHaveProperty('stock')
   })
 
-  it('an exclusive piece may have no group', async () => {
-    const { uc, products } = setup()
-    await uc.create({ name: 'Rare', price: 5000, category: 'shoes', is_exclusive: true })
-    expect(products.create).toHaveBeenCalledWith(expect.objectContaining({ is_exclusive: true, exclusive_id: null }))
-  })
-
-  it('the back-office lists exclusive and regular pieces together', async () => {
+  it('the back-office lists every piece, hidden ones included', async () => {
     const { uc, products } = setup()
     await uc.list({})
-    expect(products.list).toHaveBeenCalledWith(expect.objectContaining({ exclusive: 'all', includeInactive: true }))
+    expect(products.list).toHaveBeenCalledWith(expect.objectContaining({ includeInactive: true }))
   })
 })
 
@@ -100,7 +93,7 @@ describe('telling the subscribers about a new piece', () => {
   it('a collection no longer needs a brand', async () => {
     // brand_id is optional end to end: products and collections are saved without one
     const { uc, products } = setup()
-    await uc.create({ name: 'Polo', price: 15000, category: 'clothing', collection_id: GROUP })
-    expect(products.create).toHaveBeenCalledWith(expect.objectContaining({ brand_id: null, collection_id: GROUP }))
+    await uc.create({ name: 'Polo', price: 15000, category: 'clothing', collection_id: '11111111-1111-4111-8111-111111111111' })
+    expect(products.create).toHaveBeenCalledWith(expect.objectContaining({ brand_id: null, collection_id: '11111111-1111-4111-8111-111111111111' }))
   })
 })
