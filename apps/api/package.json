@@ -1,0 +1,32 @@
+{
+  "name": "@trs/api",
+  "version": "2.0.0",
+  "private": true,
+  "description": "THE RISING STAR — REST API (Next.js route handlers, clean architecture)",
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "build:vercel": "npm --prefix ../.. run build:web && node scripts/bundle-web.mjs && next build",
+    "start": "next start -p 3001",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "@trs/shared": "*",
+    "jose": "^6.2.13",
+    "next": "^15.5.28",
+    "nodemailer": "^10.2.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zod": "^4.1.11"
+  },
+  "devDependencies": {
+    "@trs/web": "*",
+    "@types/node": "^22.20.5",
+    "@types/nodemailer": "^8.0.2",
+    "@types/react": "^19.2.0",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

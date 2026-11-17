@@ -1,0 +1,40 @@
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 3 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (JavaScript/TypeScript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      # The repository is private without GitHub Advanced Security, so results cannot be
+      # uploaded to code scanning: they are written to a file and gate the job instead.
+      - uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          upload: never
+          output: sarif-results
+      - name: Fail on findings
+        run: |
+          count=$(jq -s '[.[].runs[].results[]] | length' sarif-results/*.sarif)
+          jq -r '.runs[].results[] | "\(.ruleId): \(.message.text | split("\n")[0]) — \(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine)"' sarif-results/*.sarif
+          echo "CodeQL findings: $count"
+          test "$count" -eq 0

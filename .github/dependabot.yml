@@ -1,0 +1,16 @@
+# Weekly dependency updates for the monorepo.
+# Only minor and patch versions are proposed automatically: major upgrades
+# carry breaking changes and are done deliberately, with testing.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]

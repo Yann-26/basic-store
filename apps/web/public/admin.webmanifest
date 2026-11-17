@@ -1,0 +1,22 @@
+{
+  "id": "/admin",
+  "name": "SCION CARON — Back-office",
+  "short_name": "TRS Admin",
+  "description": "Commandes, catalogue, clients et newsletter de SCION CARON.",
+  "lang": "fr",
+  "start_url": "/admin",
+  "scope": "/admin",
+  "display": "standalone",
+  "background_color": "#0A0A0A",
+  "theme_color": "#0A0A0A",
+  "icons": [
+    { "src": "/app/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/app/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/app/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Commandes", "url": "/admin/orders", "icons": [{ "src": "/app/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Produits", "url": "/admin/products", "icons": [{ "src": "/app/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Newsletter", "url": "/admin/newsletter", "icons": [{ "src": "/app/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

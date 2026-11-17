@@ -1,0 +1,68 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+:root{--gold:#D4AF37;--gold-l:#F6E27A;--gold-d:#A8841F;--ink:#0A0A0A}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--ink);color:#fff;font-family:'Liberation Sans',sans-serif;overflow:hidden}
+.c{position:relative;overflow:hidden;background:radial-gradient(ellipse at 72% 50%,#2a220c 0%,#111 38%,#0A0A0A 70%)}
+.serif{font-family:'Bitstream Charter','Liberation Serif',serif}
+.goldtxt{background:linear-gradient(135deg,var(--gold-l),var(--gold) 50%,var(--gold-d));-webkit-background-clip:text;color:transparent}
+.twelve{position:absolute;font-family:'Bitstream Charter',serif;font-weight:700;color:transparent;-webkit-text-stroke:2px rgba(212,175,55,.16);line-height:.8;letter-spacing:-.04em}
+.ball{position:absolute;overflow:visible}
+.eyebrow{text-transform:uppercase;letter-spacing:.45em;color:var(--gold);font-weight:700}
+.title{font-weight:700;line-height:.88;letter-spacing:.02em}
+.models{color:#d6d6d6;letter-spacing:.12em;text-transform:uppercase}
+.models b{color:var(--gold);font-weight:400;margin:0 .5em}
+.price{color:#bbb}.price strong{color:#fff}
+.cta{display:inline-flex;align-items:center;gap:.7em;border-radius:999px;background:linear-gradient(135deg,var(--gold-l),var(--gold) 55%,var(--gold-d));color:var(--ink);font-weight:700;text-transform:uppercase;letter-spacing:.2em}
+.brand{display:flex;align-items:center;gap:.6em;font-family:'Bitstream Charter',serif;font-weight:700;letter-spacing:.2em}
+.line{height:2px;background:linear-gradient(90deg,var(--gold),transparent)}
+.foot{color:#8a8a8a;letter-spacing:.15em;text-transform:uppercase}
+/* desktop */
+.d{width:1920px;height:800px}
+.d .twelve{font-size:900px;right:120px;top:-40px}
+.d .ball{width:560px;height:560px;right:250px;top:120px}
+.d .content{position:absolute;left:140px;top:70px;width:1000px}
+.d .brand{font-size:26px}.d .brand svg{width:40px;height:40px}
+.d .eyebrow{font-size:22px;margin-top:48px}
+.d .title{font-size:165px;margin-top:18px}
+.d .line{width:340px;margin:28px 0 24px}
+.d .models{font-size:26px}
+.d .price{font-size:28px;margin-top:16px}
+.d .cta{font-size:20px;padding:22px 42px;margin-top:30px}
+.d .foot{position:absolute;right:140px;bottom:46px;font-size:18px}
+/* mobile */
+.m{width:1080px;height:1920px}
+.m .twelve{font-size:1100px;left:-40px;top:560px}
+.m .ball{width:640px;height:640px;left:220px;top:720px}
+.m .content{position:absolute;left:90px;right:90px;top:120px}
+.m .brand{font-size:30px}.m .brand svg{width:46px;height:46px}
+.m .eyebrow{font-size:26px;margin-top:90px}
+.m .title{font-size:188px;margin-top:26px}
+.m .bottom{position:absolute;left:90px;right:90px;bottom:120px}
+.m .line{width:300px;margin:0 0 34px}
+.m .models{font-size:30px;line-height:1.5}
+.m .price{font-size:36px;margin-top:26px}
+.m .cta{font-size:28px;padding:30px 54px;margin-top:46px}
+.m .foot{font-size:22px;margin-top:40px}
+</style></head><body>
+<template id="star"><svg viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F6E27A"/><stop offset=".5" stop-color="#D4AF37"/><stop offset="1" stop-color="#A8841F"/></linearGradient></defs><path fill="url(#g)" d="M32 4l7.6 17.9 19.4 1.7-14.7 12.7 4.4 19L32 45.3 15.3 55.3l4.4-19L5 23.6l19.4-1.7z"/></svg></template>
+<template id="ballsvg"><svg class="ball" viewBox="0 0 200 200"><defs><radialGradient id="bg" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#3a2f10"/><stop offset=".7" stop-color="#15120a"/><stop offset="1" stop-color="#0A0A0A"/></radialGradient><linearGradient id="bl" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="200" y2="200"><stop offset="0" stop-color="#F6E27A"/><stop offset=".5" stop-color="#D4AF37"/><stop offset="1" stop-color="#A8841F"/></linearGradient><filter id="gl" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter></defs>
+<circle cx="100" cy="100" r="96" fill="#D4AF37" opacity=".18" filter="url(#gl)"/>
+<circle cx="100" cy="100" r="92" fill="url(#bg)" stroke="url(#bl)" stroke-width="2.5"/>
+<g fill="none" stroke="url(#bl)" stroke-width="2.2" stroke-linecap="round">
+<path d="M8 100h184"/><path d="M100 8v184"/>
+<path d="M36 30c26 22 26 118 0 140"/><path d="M164 30c-26 22-26 118 0 140"/></g></svg></template>
+<div id="root"></div>
+<script>
+const v=new URLSearchParams(location.search).get('v')||'d'
+const star=document.getElementById('star').innerHTML, ball=document.getElementById('ballsvg').innerHTML
+const brand=`<div class="brand">${star}<span>THE <span class="goldtxt">RISING</span> STAR</span></div>`
+const models=`Ja 4<b>✦</b>Ja 3<b>✦</b>Ja Twelve Time`
+const common={eyebrow:`<p class="eyebrow">Nouvelle collection · Nike</p>`,
+ title:`<h1 class="title serif">JA<br><span class="goldtxt">MORANT</span></h1>`,
+ price:`<p class="price">24 modèles, adultes &amp; enfants · dès <strong>41 500 FCFA</strong></p>`,
+ cta:`<span class="cta">Précommander ${'<svg width="1em" height="1em" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" stroke="#0A0A0A" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>'}</span>`,
+ foot:`<p class="foot">Acompte en ligne · Livraison partout en Côte d'Ivoire</p>`}
+document.getElementById('root').innerHTML = v==='d'
+ ? `<div class="c d"><div class="twelve">12</div>${ball}<div class="content">${brand}${common.eyebrow}${common.title}<div class="line"></div><p class="models">${models}</p>${common.price}${common.cta}</div>${common.foot}</div>`
+ : `<div class="c m"><div class="twelve">12</div>${ball}<div class="content">${brand}${common.eyebrow}${common.title}</div><div class="bottom"><div class="line"></div><p class="models">${models}</p>${common.price}${common.cta}${common.foot}</div></div>`
+</script></body></html>

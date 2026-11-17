@@ -1,0 +1,30 @@
+{
+  "name": "the-rising-star",
+  "private": true,
+  "version": "2.0.0",
+  "description": "THE RISING STAR — premium fashion, footwear & accessories store (monorepo)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:web": "npm run dev -w @trs/web",
+    "dev:api": "npm run dev -w @trs/api",
+    "build": "npm run build -w @trs/shared --if-present && npm run build -w @trs/api && npm run build -w @trs/web",
+    "build:web": "npm run build -w @trs/web",
+    "build:api": "npm run build -w @trs/api",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.28"
+    },
+    "source-map-js": "^1.2.2"
+  }
+}

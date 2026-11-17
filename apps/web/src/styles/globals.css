@@ -1,0 +1,276 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Storefront design tokens
+   Gold is the signature accent; black & white carry the layout.
+   ========================================================================== */
+@theme {
+  --color-gold: #D4AF37;
+  --color-gold-light: #F1D98A;
+  --color-gold-pale: #FBF3DC;
+  --color-gold-dark: #A8841F;
+  --color-gold-deep: #7A5E12;
+
+  --color-primary-black: #0A0A0A;
+  --color-primary-white: #FFFFFF;
+  --color-ivory: #FAF8F3;
+  --color-ink: #111111;
+
+  --color-dark-900: #0A0A0A;
+  --color-dark-800: #111111;
+  --color-dark-700: #171717;
+  --color-dark-600: #222222;
+  --color-dark-500: #2E2E2E;
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Playfair Display', 'Times New Roman', serif;
+  --font-campaign: 'Archivo', 'Arial Narrow', 'Inter', sans-serif;
+
+  --animate-shimmer: none;
+  --animate-float: none;
+  --animate-fade-in: fadeIn 0.5s ease-out;
+  --animate-marquee: marquee 30s linear infinite;
+}
+
+/* --------------------------------------------------------------------------
+   Storefront themes. Components are written for the dark palette; the light
+   theme swaps the tokens so the same classes read as black on white, with a
+   monochrome accent. `.theme-dark` restores the dark palette inside a light
+   page (full-screen stages over photos, the footer), with the brand colours
+   chosen in the back-office (--brand-*, set by BrandEffects).
+   -------------------------------------------------------------------------- */
+:root {
+  --brand-gold: #D4AF37;
+  --brand-gold-light: #F1D98A;
+  --brand-gold-pale: #FBF3DC;
+  --brand-gold-dark: #A8841F;
+  --brand-gold-deep: #7A5E12;
+  /* Soft light behind headings: gold on dark pages, a faint shadow on light ones. */
+  --glow: 212 175 55;
+}
+
+.theme-light {
+  --color-primary-black: #FFFFFF;
+  --color-primary-white: #0A0A0A;
+  --color-white: #0A0A0A;
+  --color-ivory: #0A0A0A;
+  --color-ink: #F6F6F4;
+  --color-dark-900: #FFFFFF;
+  --color-dark-800: #F6F6F6;
+  --color-dark-700: #F0F0F0;
+  --color-dark-600: #E4E4E4;
+  --color-dark-500: #D4D4D4;
+  /* Editorial: photographs and panels sit square on the white page. */
+  --radius-xl: 0.25rem;
+  --radius-2xl: 0.25rem;
+  --radius-3xl: 0.25rem;
+  --color-gray-200: #2B2B2B;
+  --color-gray-300: #3A3A3A;
+  --color-gray-400: #575757;
+  --color-gray-500: #6E6E6E;
+  --color-gray-600: #8C8C8C;
+  --color-neutral-500: #A3A3A3;
+  --color-neutral-600: #C4C4C4;
+  --color-gold: #0A0A0A;
+  --color-gold-light: #3A3A3A;
+  --color-gold-pale: #F0EFEB;
+  --color-gold-dark: #0A0A0A;
+  --color-gold-deep: #0A0A0A;
+  --glow: 255 255 255;
+  background-color: var(--color-primary-black);
+  color: var(--color-primary-white);
+}
+
+.theme-dark {
+  --color-primary-black: #0A0A0A;
+  --color-primary-white: #FFFFFF;
+  --color-white: #FFFFFF;
+  --color-ivory: #FAF8F3;
+  --color-ink: #111111;
+  --color-dark-900: #0A0A0A;
+  --color-dark-800: #111111;
+  --color-dark-700: #171717;
+  --color-dark-600: #222222;
+  --color-dark-500: #2E2E2E;
+  --color-gray-200: #E5E7EB;
+  --color-gray-300: #D1D5DB;
+  --color-gray-400: #9CA3AF;
+  --color-gray-500: #6B7280;
+  --color-gray-600: #4B5563;
+  --color-neutral-500: #737373;
+  --color-neutral-600: #525252;
+  --color-gold: var(--brand-gold);
+  --color-gold-light: var(--brand-gold-light);
+  --color-gold-pale: var(--brand-gold-pale);
+  --color-gold-dark: var(--brand-gold-dark);
+  --color-gold-deep: var(--brand-gold-deep);
+  --glow: 212 175 55;
+  color: var(--color-primary-white);
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes breathe {
+  from { transform: scale(1.02); }
+  to { transform: scale(1.1) translateY(-1.5%); }
+}
+@keyframes veil-a {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(18%, 12%) scale(1.15); }
+}
+@keyframes veil-b {
+  from { transform: translate(0, 0) scale(1.1); }
+  to { transform: translate(-16%, -14%) scale(0.95); }
+}
+@keyframes veil-c {
+  from { transform: translate(-6%, 4%); opacity: 0.6; }
+  to { transform: translate(8%, -6%); opacity: 1; }
+}
+@keyframes dust-rise {
+  0% { transform: translate(0, 0); opacity: 0; }
+  10% { opacity: 1; }
+  85% { opacity: 0.9; }
+  100% { transform: translate(var(--drift, 0px), -110vh); opacity: 0; }
+}
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background-color: var(--color-primary-black);
+    color: var(--color-primary-white);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+  ::selection {
+    background-color: var(--color-gold);
+    color: var(--color-primary-black);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 2px;
+  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--color-primary-black); }
+  ::-webkit-scrollbar-thumb { background: var(--color-gold-dark); border-radius: 9999px; }
+  /* The reCAPTCHA v3 badge is replaced by the legal notice in our forms. */
+  .grecaptcha-badge { visibility: hidden !important; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  }
+}
+
+@layer components {
+  .container-custom {
+    width: 100%;
+    max-width: 80rem;
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+  @media (min-width: 640px) { .container-custom { padding-inline: 1.5rem; } }
+  @media (min-width: 1024px) { .container-custom { padding-inline: 2rem; } }
+
+  /* Calm luxury: gold stays flat and rare (no gradients, shimmer or glow). */
+  .text-gold-gradient { color: var(--color-gold); }
+  .bg-gold-gradient { background-color: var(--color-gold); }
+  .gold-border { border: 1px solid rgba(212, 175, 55, 0.35); }
+  .gold-glow { box-shadow: none; }
+  .glass-effect {
+    background-color: rgba(10, 10, 10, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  /* Campaign titles: a heavy condensed grotesque, set tight and in capitals. */
+  .campaign-title {
+    font-family: var(--font-campaign);
+    font-weight: 800;
+    font-stretch: 72%;
+    text-transform: uppercase;
+    line-height: 0.88;
+    letter-spacing: -0.015em;
+  }
+  /* The line under a campaign picture: its call to action and an arrow. */
+  .link-bar {
+    display: flex;
+    min-height: 3rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .link-bar:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .eyebrow {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--color-gold);
+  }
+  .card-hover { transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s; }
+    .card-hover:hover {
+    border-color: rgba(212, 175, 55, 0.45);
+    transform: translateY(-2px);
+  }
+  .field {
+    width: 100%;
+    background-color: var(--color-dark-700);
+    border: 1px solid var(--color-dark-500);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    color: var(--color-primary-white);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .field::placeholder { color: #6b6b6b; }
+  .field:focus { outline: none; border-color: var(--color-gold); box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.25); }
+  .skeleton {
+    background: linear-gradient(90deg, var(--color-dark-700) 25%, var(--color-dark-600) 50%, var(--color-dark-700) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
+}
+
+/* Printing a payment ticket: only the ticket, on white paper. */
+@media print {
+  body:has(.balance-ticket) {
+    background: #fff !important;
+  }
+  body:has(.balance-ticket) * {
+    visibility: hidden;
+  }
+  body:has(.balance-ticket) .balance-ticket,
+  body:has(.balance-ticket) .balance-ticket * {
+    visibility: visible;
+  }
+  body:has(.balance-ticket) .balance-ticket {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+  }
+}

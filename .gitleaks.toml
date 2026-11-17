@@ -1,0 +1,13 @@
+# Secret scanning (CI job "Secret scan"). Default gitleaks rules plus the
+# allow-list below for values that are public by design.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public-by-design values"
+paths = ['''package-lock\.json''']
+# Paystack *public* keys ship to browsers by design (one was in .env, 2026-07/09).
+regexes = ['''pk_(live|test)_[0-9a-f]{20,}''']
+# 2026-07-27: a placeholder anon-key stub (JWT header + "placeholder"), not a credential.
+# 2026-10-06: a dummy visitor key in a unit test (`key_12345678`), replaced in the next commit.
+commits = ['d27d44bae601a1e1074d3ac7cd27d3b1ccf35307', 'be4fb77ef5c978effe4a53682c15ed76984c3d6b']
