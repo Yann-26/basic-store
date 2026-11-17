@@ -1,4 +1,4 @@
-import { BRAND, referralSettings, resolveDepositPercentage, resolveEarlyAccessHours, type ReferralSettings } from '@trs/shared'
+import { BRAND, referralSettings, resolveDeliverySettings, type ReferralSettings } from '@trs/shared'
 import { http } from '../core/http'
 import { parseLookbook, parseMotionReel, parseRack, parseThankYou, parseWelcomeCard, type Lookbook, type MotionReel, type Rack, type ThankYouCard, type WelcomeCard } from './marketing'
 
@@ -18,10 +18,13 @@ export interface AppSettings {
   primary_color: string
   secondary_color: string
   accent_color: string
-  /** Share of the price paid as a deposit when the pre-order is placed (the balance before delivery). */
-  deposit_percentage: number
-  /** Hours before a drop opens during which its subscribers can already order (0: off). */
-  drop_early_access_hours: number
+  /** Delivery fees (FCFA): Abidjan, elsewhere in Côte d'Ivoire; free from a basket amount (0: never). */
+  delivery_fee_abidjan: number
+  delivery_fee_interior: number
+  free_delivery_from: number
+  /** Payment modes offered at checkout. */
+  cash_on_delivery_enabled: boolean
+  online_payment_enabled: boolean
   delivery_days_min: number
   delivery_days_max: number
   max_items_per_order: number
@@ -145,8 +148,12 @@ export const settingsService = {
       primary_color: data.primary_color || BRAND.colors.gold,
       secondary_color: data.secondary_color || '#0A0A0A',
       accent_color: data.accent_color || '#FFFFFF',
-      deposit_percentage: resolveDepositPercentage(data.deposit_percentage),
-      drop_early_access_hours: resolveEarlyAccessHours(data.drop_early_access_hours),
+      ...(() => {
+        const d = resolveDeliverySettings(data)
+        return { delivery_fee_abidjan: d.abidjan, delivery_fee_interior: d.interior, free_delivery_from: d.freeFrom }
+      })(),
+      cash_on_delivery_enabled: data.cash_on_delivery_enabled !== false && data.cash_on_delivery_enabled !== 'false',
+      online_payment_enabled: data.online_payment_enabled !== false && data.online_payment_enabled !== 'false',
       delivery_days_min: Number(data.delivery_days_min) || 1,
       delivery_days_max: Number(data.delivery_days_max) || 3,
       max_items_per_order: Number(data.max_items_per_order) || 10,

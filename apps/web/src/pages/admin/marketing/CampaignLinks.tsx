@@ -75,7 +75,6 @@ export default function CampaignLinks({ products }: { products: Product[] }) {
               <option value="/">Accueil</option>
               <option value="/collection">Boutique</option>
               <option value="/collection?sort=newest">Nouveautés</option>
-              <option value="/exclusivites">Exclusivités</option>
               {products.map((p) => (
                 <option key={p.id} value={`/product/${p.slug}`}>
                   Pièce : {p.name}

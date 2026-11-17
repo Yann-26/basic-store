@@ -17,7 +17,6 @@ import { catalogService } from '../services/catalogService'
 import { useSettings } from '../context/SettingsContext'
 import { useDebounce } from '../hooks/useDebounce'
 import ProductCard, { ProductCardSkeleton } from '../components/products/ProductCard'
-import ExclusiveBanner from '../components/exclusives/ExclusiveBanner'
 import Button from '../components/ui/Button'
 
 const PAGE_SIZE = 24
@@ -195,7 +194,7 @@ export default function CollectionPage() {
     <>
       <Helmet>
         <title>{`${title} | ${settings.store_name}`}</title>
-        <meta name="description" content={cat?.description ?? 'Vêtements, chaussures, sacs, bijoux et accessoires premium en précommande.'} />
+        <meta name="description" content={cat?.description ?? 'Vêtements, chaussures, sacs et accessoires à bon prix — livraison partout en Côte d’Ivoire.'} />
       </Helmet>
 
       <section className="border-b border-white/5 bg-[radial-gradient(ellipse_at_top,rgb(var(--glow)/0.12),transparent_60%)] pb-10 pt-14">
@@ -207,7 +206,6 @@ export default function CollectionPage() {
       </section>
 
       <section className="container-custom py-10">
-        <ExclusiveBanner compact className="mb-10" />
         <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <HiMagnifyingGlass className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500" />

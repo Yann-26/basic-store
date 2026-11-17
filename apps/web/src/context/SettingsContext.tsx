@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
-import { BRAND, DEFAULT_DEPOSIT_PERCENTAGE, DEFAULT_EARLY_ACCESS_HOURS, DEFAULT_REFERRAL } from '@trs/shared'
+import { BRAND, DEFAULT_DELIVERY, DEFAULT_REFERRAL } from '@trs/shared'
 import { settingsService, type AppSettings } from '../services/settingsService'
 import { DEFAULT_LOOKBOOK, DEFAULT_MOTION_REEL, DEFAULT_THANK_YOU, DEFAULT_WELCOME_CARD, DEFAULT_RACK } from '../services/marketing'
 
@@ -21,7 +21,7 @@ export const defaultSettings: AppSettings = {
   store_email: BRAND.email,
   store_phone: BRAND.phone,
   store_whatsapp: BRAND.phone,
-  store_address: 'Cocody, Riviera',
+  store_address: 'Angré Nouveau CHU, Djorogobité 1',
   store_city: 'Abidjan',
   store_country: "Côte d'Ivoire",
   store_logo: '',
@@ -29,10 +29,13 @@ export const defaultSettings: AppSettings = {
   primary_color: BRAND.colors.gold,
   secondary_color: BRAND.colors.black,
   accent_color: BRAND.colors.white,
-  deposit_percentage: DEFAULT_DEPOSIT_PERCENTAGE,
-  drop_early_access_hours: DEFAULT_EARLY_ACCESS_HOURS,
+  delivery_fee_abidjan: DEFAULT_DELIVERY.abidjan,
+  delivery_fee_interior: DEFAULT_DELIVERY.interior,
+  free_delivery_from: DEFAULT_DELIVERY.freeFrom,
+  cash_on_delivery_enabled: true,
+  online_payment_enabled: true,
   delivery_days_min: 1,
-  delivery_days_max: 3,
+  delivery_days_max: 5,
   max_items_per_order: 10,
   auto_confirm_orders: false,
   currency: 'XOF',
@@ -44,7 +47,7 @@ export const defaultSettings: AppSettings = {
   orange_money_number: '',
   mtn_money_number: '',
   wave_number: '',
-  social_instagram: '',
+  social_instagram: 'basicstoreci',
   social_facebook: '',
   social_tiktok: '',
   social_snapchat: '',
@@ -57,7 +60,7 @@ export const defaultSettings: AppSettings = {
   session_timeout: 30,
   seo_title: `${BRAND.name} | ${BRAND.tagline}`,
   seo_description: BRAND.description,
-  seo_keywords: "mode, vêtements, t-shirt oversize, luxe sobre, marque ivoirienne, Abidjan, Côte d'Ivoire",
+  seo_keywords: "Basic Store, boutique, vêtements, chaussures, mode homme, mode femme, Angré, Abidjan, Côte d'Ivoire, livraison",
   hero_title: 'Élevez\nvotre style.',
   hero_subtitle: 'Des vêtements simples et bien coupés, fabriqués à Abidjan en séries limitées et livrés partout en Côte d’Ivoire.',
   hero_cta_primary: 'Découvrir la boutique',
@@ -80,7 +83,7 @@ export const defaultSettings: AppSettings = {
   spotlight_enabled: false,
   spotlight_layout: 'maison',
   spotlight_product_slug: '',
-  spotlight_eyebrow: 'Exclusivité · Édition limitée',
+  spotlight_eyebrow: 'Coup de cœur',
   spotlight_title: '',
   spotlight_text: '',
   spotlight_cta_label: 'Découvrir la pièce',

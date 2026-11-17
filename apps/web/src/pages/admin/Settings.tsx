@@ -39,8 +39,11 @@ interface StoreSettings {
   country: string
   primaryColor: string
   secondaryColor: string
-  depositPercentage: number
-  dropEarlyAccessHours: number
+  deliveryFeeAbidjan: number
+  deliveryFeeInterior: number
+  freeDeliveryFrom: number
+  cashOnDelivery: boolean
+  onlinePayment: boolean
   deliveryDaysMin: number
   deliveryDaysMax: number
   autoConfirmOrders: boolean
@@ -70,7 +73,7 @@ interface StoreSettings {
 const tabs = [
   { id: 'general', label: 'Général', icon: HiBuildingStorefront },
   { id: 'storefront', label: 'Vitrine', icon: HiSparkles },
-  { id: 'preorder', label: 'Précommandes', icon: HiTruck },
+  { id: 'preorder', label: 'Livraison & commandes', icon: HiTruck },
   { id: 'payment', label: 'Paiement', icon: HiCreditCard },
   { id: 'social', label: 'Réseaux sociaux', icon: HiGlobeAlt },
   { id: 'notifications', label: 'Notifications', icon: HiBell },
@@ -100,12 +103,15 @@ export default function AdminSettings() {
         address: contextSettings.store_address || '',
         city: contextSettings.store_city || '',
         country: contextSettings.store_country || '',
-        primaryColor: contextSettings.primary_color || '#D4AF37',
+        primaryColor: contextSettings.primary_color || '#0A0A0A',
         secondaryColor: contextSettings.secondary_color || '#0A0A0A',
-        depositPercentage: contextSettings.deposit_percentage,
-        dropEarlyAccessHours: contextSettings.drop_early_access_hours,
-        deliveryDaysMin: contextSettings.delivery_days_min || 10,
-        deliveryDaysMax: contextSettings.delivery_days_max || 15,
+        deliveryFeeAbidjan: contextSettings.delivery_fee_abidjan,
+        deliveryFeeInterior: contextSettings.delivery_fee_interior,
+        freeDeliveryFrom: contextSettings.free_delivery_from,
+        cashOnDelivery: contextSettings.cash_on_delivery_enabled,
+        onlinePayment: contextSettings.online_payment_enabled,
+        deliveryDaysMin: contextSettings.delivery_days_min || 1,
+        deliveryDaysMax: contextSettings.delivery_days_max || 5,
         autoConfirmOrders: contextSettings.auto_confirm_orders || false,
         maxItemsPerOrder: contextSettings.max_items_per_order || 10,
         currency: contextSettings.currency || 'XOF',
@@ -159,8 +165,11 @@ export default function AdminSettings() {
         store_country: settings.country,
         primary_color: settings.primaryColor,
         secondary_color: settings.secondaryColor,
-        deposit_percentage: settings.depositPercentage,
-        drop_early_access_hours: settings.dropEarlyAccessHours,
+        delivery_fee_abidjan: settings.deliveryFeeAbidjan,
+        delivery_fee_interior: settings.deliveryFeeInterior,
+        free_delivery_from: settings.freeDeliveryFrom,
+        cash_on_delivery_enabled: settings.cashOnDelivery,
+        online_payment_enabled: settings.onlinePayment,
         delivery_days_min: settings.deliveryDaysMin,
         delivery_days_max: settings.deliveryDaysMax,
         auto_confirm_orders: settings.autoConfirmOrders,
@@ -416,7 +425,7 @@ export default function AdminSettings() {
                 <div className="w-10 h-10 bg-gold/10 rounded-xl flex items-center justify-center">
                   <HiTruck className="w-5 h-5 text-gold" />
                 </div>
-                <h2 className="text-lg font-bold uppercase tracking-wider">Précommandes</h2>
+                <h2 className="text-lg font-bold uppercase tracking-wider">Livraison & commandes</h2>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-6">
@@ -430,25 +439,56 @@ export default function AdminSettings() {
                 />
               </div>
 
-              <Input
-                label="Acompte à la précommande (%)"
-                type="number"
-                min={1}
-                max={100}
-                value={settings.depositPercentage.toString()}
-                onChange={(e) => updateSetting('depositPercentage', Number(e.target.value))}
-                hint="Selon l’accord avec l’atelier : payé à la commande, le solde est réglé avant la livraison. 100 % = paiement complet."
-              />
-
-              <Input
-                label="Accès anticipé des drops (heures)"
-                type="number"
-                min={0}
-                max={168}
-                value={settings.dropEarlyAccessHours.toString()}
-                onChange={(e) => updateSetting('dropEarlyAccessHours', Number(e.target.value))}
-                hint="Les pièces d’un drop ne sont commandables qu’à son ouverture. Les inscrits (« Prévenez-moi » ou newsletter, avant l’accès anticipé) peuvent commander ce nombre d’heures plus tôt et reçoivent un email. 0 = pas d’accès anticipé."
-              />
+              <div className="grid sm:grid-cols-3 gap-6">
+                <Input
+                  label="Livraison Abidjan (FCFA)"
+                  type="number"
+                  min={0}
+                  value={settings.deliveryFeeAbidjan.toString()}
+                  onChange={(e) => updateSetting('deliveryFeeAbidjan', Number(e.target.value))}
+                />
+                <Input
+                  label="Livraison intérieur (FCFA)"
+                  type="number"
+                  min={0}
+                  value={settings.deliveryFeeInterior.toString()}
+                  onChange={(e) => updateSetting('deliveryFeeInterior', Number(e.target.value))}
+                />
+                <Input
+                  label="Livraison offerte dès (FCFA)"
+                  type="number"
+                  min={0}
+                  value={settings.freeDeliveryFrom.toString()}
+                  onChange={(e) => updateSetting('freeDeliveryFrom', Number(e.target.value))}
+                  hint="0 = jamais offerte"
+                />
+              </div>
+              <label className="flex items-center justify-between p-4 bg-dark-700 rounded-xl cursor-pointer">
+                <div>
+                  <p className="font-medium">Paiement à la livraison</p>
+                  <p className="text-sm text-gray-400">Le client paie le livreur (espèces ou Mobile Money) ou au retrait en boutique</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => updateSetting('cashOnDelivery', !settings.cashOnDelivery)}
+                  className={`relative w-12 h-7 rounded-full transition-colors ${settings.cashOnDelivery ? 'bg-gold' : 'bg-dark-500'}`}
+                >
+                  <motion.div animate={{ x: settings.cashOnDelivery ? 20 : 2 }} className="absolute top-1 w-5 h-5 bg-white rounded-full" />
+                </button>
+              </label>
+              <label className="flex items-center justify-between p-4 bg-dark-700 rounded-xl cursor-pointer">
+                <div>
+                  <p className="font-medium">Paiement en ligne</p>
+                  <p className="text-sm text-gray-400">Paystack : Wave, Orange Money, MTN, Moov, carte. Non payée en 2 h, la commande est annulée et son stock libéré.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => updateSetting('onlinePayment', !settings.onlinePayment)}
+                  className={`relative w-12 h-7 rounded-full transition-colors ${settings.onlinePayment ? 'bg-gold' : 'bg-dark-500'}`}
+                >
+                  <motion.div animate={{ x: settings.onlinePayment ? 20 : 2 }} className="absolute top-1 w-5 h-5 bg-white rounded-full" />
+                </button>
+              </label>
 
               <div className="grid sm:grid-cols-2 gap-6">
                 <Input
@@ -470,7 +510,7 @@ export default function AdminSettings() {
                   Délai de livraison affiché : <span className="text-white font-medium">{settings.deliveryDaysMin}-{settings.deliveryDaysMax} jours</span>
                 </p>
                 <p className="text-sm text-gray-400 mt-1">
-                  Acompte : <span className="text-gold font-medium">{settings.depositPercentage} %</span> du prix à la commande, le solde avant la livraison
+                  Retrait en boutique : <span className="text-white font-medium">gratuit</span>
                 </p>
               </div>
 
@@ -604,7 +644,7 @@ export default function AdminSettings() {
                     icon={social.icon}
                     value={settings[social.key]}
                     onChange={(e) => updateSetting(social.key, e.target.value)}
-                    placeholder={`${social.prefix}scioncaron`}
+                    placeholder={`${social.prefix}basicstoreci`}
                   />
                 ))}
               </div>

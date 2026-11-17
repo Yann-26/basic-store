@@ -33,7 +33,7 @@ import {
   PAYMENT_KIND_LABELS,
   PAYMENT_METHOD_LABELS,
   paymentProgress,
-  type ManualPaymentMethod, formatPieceNumbers } from '@trs/shared'
+  type ManualPaymentMethod, CHECKOUT_PAYMENT_LABELS, DELIVERY_ZONE_LABELS, type CheckoutPaymentMode, type DeliveryZone } from '@trs/shared'
 import PaymentProgress from '../../components/orders/PaymentProgress'
 import { payBalanceUrl } from '../../utils/payLinks'
 import { errorMessage } from '../../core/http'
@@ -42,9 +42,9 @@ import { paymentService } from '../../services/paymentService'
 const PAYMENT_FILTERS = {
   all: 'Tous les paiements',
   unpaid: 'Non payé',
-  partial: 'Acompte payé (solde dû)',
+  partial: 'Payé en partie',
   paid: 'Payé 100 %',
-  unpaid_delivered: 'Livrée, solde non reçu',
+  unpaid_delivered: 'Livrée, argent non encaissé',
 } as const
 type PaymentFilter = keyof typeof PAYMENT_FILTERS
 
@@ -232,12 +232,44 @@ export default function AdminOrders() {
   }
 
   const reminderText = (order: Order) =>
-    `Bonjour ${order.customers?.first_name ?? ''}, il reste ${formatCurrency(paymentProgress(order).outstanding)} à régler sur votre précommande ${order.preorder_number}. ` +
+    `Bonjour ${order.customers?.first_name ?? ''}, il reste ${formatCurrency(paymentProgress(order).outstanding)} à régler sur votre commande ${order.preorder_number}. ` +
     `Vous pouvez payer en ligne ici : ${payBalanceUrl(order.preorder_number)} — Merci ! ${settings.store_name}`
 
   const handleCancel = async (orderId: string) => {
-    if (!confirm('Annuler cette précommande ? Le client sera notifié par email.')) return
+    if (!confirm('Annuler cette commande ? Ses articles sont remis en stock et le client est notifié par email.')) return
     await handleStatusUpdate(orderId, 'cancelled')
+  }
+
+  const handleReturn = async (orderId: string) => {
+    if (!confirm('Marquer cette commande comme retournée ? Ses articles sont remis en stock.')) return
+    await handleStatusUpdate(orderId, 'returned')
+  }
+
+  /**
+   * Delivering an order paid on delivery: the cash the rider brings back is
+   * recorded as a payment first, so that the order and the dashboard show real money.
+   */
+  const handleDeliver = async (order: Order) => {
+    const outstanding = paymentProgress(order).outstanding
+    if (outstanding > 0 && order.payment_method !== 'online') {
+      const collected = confirm(`Le client a payé ${formatCurrency(outstanding)} à la livraison ?\n\nOK : enregistrer l’encaissement (espèces) et marquer livrée.\nAnnuler : marquer livrée sans encaissement.`)
+      if (collected) {
+        try {
+          await ordersService.recordPayment(order.id, { amount: outstanding, method: 'cash', note: 'Encaissé à la livraison' })
+        } catch (err) {
+          toast.error(errorMessage(err, 'Encaissement impossible'))
+          return
+        }
+      }
+    }
+    await handleStatusUpdate(order.id, 'delivered')
+  }
+
+  const advance = (order: Order) => {
+    const next = NEXT_STATUS[order.status as OrderStatus]
+    if (!next) return
+    if (next === 'delivered') return handleDeliver(order)
+    return handleStatusUpdate(order.id, next)
   }
 
   const handleStatusUpdate = async (orderId: string, newStatus: OrderStatus) => {
@@ -378,7 +410,6 @@ export default function AdminOrders() {
                           <div key={i}>
                             {item.product_name || 'Produit'} (Taille {item.size || '-'})
                             {item.quantity > 1 && ` x${item.quantity}`}
-                            {(item.piece_numbers ?? []).length > 0 && <span className="ml-1 text-gold">{formatPieceNumbers(item.piece_numbers)}</span>}
                           </div>
                         ))}
                       </div>
@@ -401,7 +432,7 @@ export default function AdminOrders() {
                         </button>
                         {order.status && NEXT_STATUS[order.status as OrderStatus] && (
                           <button
-                            onClick={() => handleStatusUpdate(order.id, NEXT_STATUS[order.status as OrderStatus]!)}
+                            onClick={() => void advance(order)}
                             disabled={updating}
                             className="p-2 text-gray-400 hover:text-green-500 transition-colors"
                             title={`Passer à: ${ORDER_STATUS_LABELS[NEXT_STATUS[order.status as OrderStatus]!]}`}
@@ -474,6 +505,17 @@ export default function AdminOrders() {
                       <p className="font-medium">{selectedOrder.delivery_city || selectedOrder.customers?.city || '-'}</p>
                     </div>
                     <div>
+                      <span className="text-gray-500 text-xs">Livraison</span>
+                      <p className="font-medium">
+                        {DELIVERY_ZONE_LABELS[(selectedOrder.delivery_zone ?? 'abidjan') as DeliveryZone] ?? selectedOrder.delivery_zone}
+                        {(selectedOrder.delivery_fee ?? 0) > 0 && <span className="text-gray-400"> · {formatCurrency(selectedOrder.delivery_fee!)}</span>}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-xs">Paiement</span>
+                      <p className="font-medium">{CHECKOUT_PAYMENT_LABELS[selectedOrder.payment_method as CheckoutPaymentMode] ?? selectedOrder.payment_method}</p>
+                    </div>
+                    <div>
                       <span className="text-gray-500 text-xs">Adresse</span>
                       <p className="font-medium">{selectedOrder.delivery_address || selectedOrder.customers?.address || '-'}</p>
                     </div>
@@ -495,7 +537,6 @@ export default function AdminOrders() {
                             Taille: {item.size}
                             {item.color && ` • Couleur: ${item.color}`}
                             {item.quantity > 1 && ` • Qté: ${item.quantity}`}
-                            {(item.piece_numbers ?? []).length > 0 && <span className="text-gold">{` • ${formatPieceNumbers(item.piece_numbers)}`}</span>}
                           </p>
                         </div>
                         <p className="font-bold">{formatCurrency(item.product_price * item.quantity)}</p>
@@ -655,19 +696,24 @@ export default function AdminOrders() {
                   <Button
                     variant="primary"
                     icon={HiCheckCircle}
-                    onClick={() => handleStatusUpdate(selectedOrder.id, NEXT_STATUS[selectedOrder.status as OrderStatus]!)}
+                    onClick={() => void advance(selectedOrder)}
                     loading={updating}
                   >
                     Passer à: {ORDER_STATUS_LABELS[NEXT_STATUS[selectedOrder.status as OrderStatus]!]}
                   </Button>
                 )}
-                {!['delivered', 'cancelled'].includes(selectedOrder.status) && (
+                {!['delivered', 'cancelled', 'returned'].includes(selectedOrder.status) && (
                   <Button
                     variant="danger"
                     onClick={() => handleCancel(selectedOrder.id)}
                     loading={updating}
                   >
                     Annuler la commande
+                  </Button>
+                )}
+                {selectedOrder.status === 'delivered' && (
+                  <Button variant="outline" onClick={() => handleReturn(selectedOrder.id)} loading={updating}>
+                    Retour client
                   </Button>
                 )}
               </div>

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { HiMagnifyingGlass } from 'react-icons/hi2'
-import { formatCurrency, isValidOrderNumber, ONE_SIZE, ORDER_STATUS_LABELS, formatPieceNumbers } from '@trs/shared'
+import { formatCurrency, isValidOrderNumber, ONE_SIZE, ORDER_STATUS_LABELS } from '@trs/shared'
 import { engagementService, type TrackingView } from '../services/engagementService'
 import { PAYMENT_STATUS_LABELS } from '../services/ordersService'
 import { errorMessage } from '../core/http'
@@ -32,7 +32,7 @@ export default function TrackOrder() {
         setParams({ number: n }, { replace: true })
       } catch (e) {
         setData(null)
-        setError(errorMessage(e, 'Précommande introuvable'))
+        setError(errorMessage(e, 'Commande introuvable'))
       } finally {
         setLoading(false)
       }
@@ -69,7 +69,7 @@ export default function TrackOrder() {
                 onChange={(e) => setNumber(e.target.value.toUpperCase())}
                 placeholder="SC-2026-7KQ4M2XA"
                 className="field !rounded-full pl-12 font-mono tracking-wider"
-                aria-label="Numéro de précommande"
+                aria-label="Numéro de commande"
               />
             </div>
             <Button type="submit" loading={loading}>
@@ -86,7 +86,7 @@ export default function TrackOrder() {
           <div className="rounded-3xl border border-white/5 bg-dark-800 p-6 md:p-8">
             <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Précommande</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Commande</p>
                 <p className="font-mono text-2xl text-gold">{data.preorder_number}</p>
               </div>
               <span className="rounded-full border border-gold/40 px-4 py-1.5 text-xs uppercase tracking-widest text-gold">{ORDER_STATUS_LABELS[data.status]}</span>
@@ -112,7 +112,6 @@ export default function TrackOrder() {
                         {i.size && i.size !== ONE_SIZE ? `Taille ${i.size} · ` : ''}
                         {i.color ? `${i.color} · ` : ''}×{i.quantity}
                       </p>
-                      {(i.piece_numbers ?? []).length > 0 && <p className="mt-1 text-xs font-medium text-gold">Pièce {formatPieceNumbers(i.piece_numbers, i.series_size)}</p>}
                     </div>
                   </li>
                 ))}
@@ -123,13 +122,19 @@ export default function TrackOrder() {
                 <dt className="text-gray-400">Total</dt>
                 <dd>{formatCurrency(data.total_price)}</dd>
               </div>
+              {data.delivery_fee > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-400">dont livraison</dt>
+                  <dd>{formatCurrency(data.delivery_fee)}</dd>
+                </div>
+              )}
               <div className="flex justify-between">
-                <dt className="text-gray-400">Acompte</dt>
-                <dd className="text-gold">{formatCurrency(data.deposit_amount)}</dd>
+                <dt className="text-gray-400">Déjà payé</dt>
+                <dd>{formatCurrency(data.amount_paid ?? 0)}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-gray-400">Reste à payer</dt>
-                <dd>{formatCurrency(data.remaining_amount)}</dd>
+                <dd>{formatCurrency(Math.max(0, data.total_price - (data.amount_paid ?? 0)))}{data.payment_method !== 'online' && data.total_price > (data.amount_paid ?? 0) ? ' (à la livraison)' : ''}</dd>
               </div>
               <div className="flex justify-between border-t border-white/10 pt-3">
                 <dt className="text-gray-400">Paiement</dt>

@@ -6,7 +6,7 @@ const variants: Record<BadgeVariant, string> = {
   new: 'bg-gold text-primary-black',
   bestseller: 'bg-white text-primary-black',
   limited: 'bg-primary-black text-gold border border-gold/50',
-  exclusive: 'bg-gold-gradient text-primary-black',
+  lowstock: 'bg-amber-500 text-white',
   soldout: 'bg-neutral-700 text-white',
   sale: 'bg-red-600 text-white',
 }

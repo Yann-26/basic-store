@@ -11,7 +11,7 @@ const IDEAS = [
   'Livraison à Abidjan en 1 à 3 jours',
   'Paiement sécurisé en ligne',
   'Séries limitées',
-  'Nouveau drop ce vendredi',
+  'Nouvel arrivage cette semaine',
   'Pop-up store samedi — venez essayer',
 ]
 

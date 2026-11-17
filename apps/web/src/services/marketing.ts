@@ -114,7 +114,7 @@ export interface WelcomeCard {
   /** Optional picture on the left (or top on phones). */
   image: string
   cta_label: string
-  /** A path of the shop (/collection, /drops…) or a full https link. */
+  /** A path of the shop (/collection, /faq…) or a full https link. */
   cta_link: string
   /** Offer the newsletter right in the card. */
   newsletter: boolean
@@ -126,7 +126,7 @@ export const DEFAULT_WELCOME_CARD: WelcomeCard = {
   enabled: true,
   eyebrow: 'Bienvenue',
   title: 'Entrez dans la Maison',
-  text: 'Des pièces pensées à Abidjan, produites en séries courtes. Découvrez la première collection et soyez prévenu·e de chaque nouveau drop.',
+  text: 'La qualité à bon prix : vêtements, chaussures et accessoires. Commandez en ligne, on livre partout en Côte d’Ivoire, et vous payez à la livraison.',
   image: '',
   cta_label: 'Découvrir la collection',
   cta_link: '/collection',

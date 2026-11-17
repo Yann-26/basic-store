@@ -105,7 +105,6 @@ export default function ShowcasePicker({
               >
                 {thumb(p) ? <img src={thumb(p)} alt="" className="h-10 w-8 rounded-lg object-cover" /> : <span className="h-10 w-8 rounded-lg bg-dark-600" />}
                 <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
-                {p.is_exclusive && <span className="rounded-full bg-gold/15 px-2 py-0.5 text-[10px] font-semibold text-gold">Exclu</span>}
                 <HiPlus className="h-4 w-4 text-gold" />
               </button>
             </li>

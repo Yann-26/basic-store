@@ -21,7 +21,7 @@ export default function AuthShell({ title, subtitle, children, aside }: { title:
               <p className="mt-4 font-display text-4xl leading-tight">Vos favoris, vos commandes et nos avant-premières, réunis.</p>
               <ul className="mt-8 space-y-3 text-sm text-neutral-600">
                 <li>★ Checkout plus rapide</li>
-                <li>★ Suivi de toutes vos précommandes</li>
+                <li>★ Suivi de toutes vos commandes</li>
                 <li>★ Accès prioritaire aux éditions limitées</li>
               </ul>
             </>

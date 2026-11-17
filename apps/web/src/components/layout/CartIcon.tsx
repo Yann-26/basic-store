@@ -1,14 +1,14 @@
 import { motion } from 'framer-motion'
 import { HiOutlineShoppingBag } from 'react-icons/hi2'
-import { usePreorder } from '../../context/PreorderContext'
+import { useCart } from '../../context/CartContext'
 
 export default function CartIcon() {
-  const { totalItems, togglePreorder } = usePreorder()
+  const { totalItems, toggleCart } = useCart()
   return (
     <button
-      onClick={togglePreorder}
+      onClick={toggleCart}
       className="relative rounded-full p-2 text-white transition-opacity hover:opacity-60"
-      aria-label={`Ma sélection (${totalItems} article${totalItems > 1 ? 's' : ''})`}
+      aria-label={`Panier (${totalItems} article${totalItems > 1 ? 's' : ''})`}
     >
       <HiOutlineShoppingBag className="h-5 w-5" />
       {totalItems > 0 && (

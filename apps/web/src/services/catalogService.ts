@@ -1,6 +1,6 @@
-import type { Collection, Exclusive, Product, ProductListQuery } from '@trs/shared'
+import type { Collection, Product, ProductListQuery } from '@trs/shared'
 import { http, toQuery } from '../core/http'
-import type { CollectionFormData, ExclusiveFormData } from '../types/catalog'
+import type { CollectionFormData } from '../types/catalog'
 
 export interface ProductPage {
   items: Product[]
@@ -25,12 +25,6 @@ export const catalogService = {
   getShowcase(signal?: AbortSignal) {
     return http.get<Product[]>('/catalog/showcase', signal)
   },
-  getExclusives() {
-    return http.get<Exclusive[]>('/catalog/exclusives')
-  },
-  getExclusive(slug: string) {
-    return http.get<Exclusive>(`/catalog/exclusives/${encodeURIComponent(slug)}`)
-  },
   getCollections() {
     return http.get<Collection[]>('/catalog/collections')
   },
@@ -47,17 +41,5 @@ export const catalogService = {
   },
   deleteCollection(id: string) {
     return http.delete(`/admin/catalog/collections/${id}`)
-  },
-  getAllExclusives() {
-    return http.get<Exclusive[]>('/admin/catalog/exclusives')
-  },
-  createExclusive(data: ExclusiveFormData) {
-    return http.post<Exclusive>('/admin/catalog/exclusives', data)
-  },
-  updateExclusive(id: string, data: Partial<ExclusiveFormData>) {
-    return http.put<Exclusive>(`/admin/catalog/exclusives/${id}`, data)
-  },
-  deleteExclusive(id: string) {
-    return http.delete(`/admin/catalog/exclusives/${id}`)
   },
 }

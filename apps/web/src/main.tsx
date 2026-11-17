@@ -5,7 +5,7 @@ import { HelmetProvider } from 'react-helmet-async'
 import { Toaster } from 'react-hot-toast'
 import App from './App'
 import { AuthProvider } from './context/AuthContext'
-import { PreorderProvider } from './context/PreorderContext'
+import { CartProvider } from './context/CartContext'
 import { SettingsProvider } from './context/SettingsContext'
 import { WishlistProvider } from './context/WishlistContext'
 import { reloadForNewVersion } from './core/lazy'
@@ -31,7 +31,7 @@ createRoot(rootElement).render(
         <SettingsProvider>
           <AuthProvider>
             <WishlistProvider>
-              <PreorderProvider>
+              <CartProvider>
                 <App />
                 <Toaster
                   position="top-center"
@@ -46,7 +46,7 @@ createRoot(rootElement).render(
                     success: { iconTheme: { primary: '#D4AF37', secondary: '#0A0A0A' } },
                   }}
                 />
-              </PreorderProvider>
+              </CartProvider>
             </WishlistProvider>
           </AuthProvider>
         </SettingsProvider>

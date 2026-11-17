@@ -10,7 +10,6 @@ import CampaignLinks from './marketing/CampaignLinks'
 import PromoCodesEditor from './marketing/PromoCodesEditor'
 import ReferralEditor from './marketing/ReferralEditor'
 import ReviewsModeration from './marketing/ReviewsModeration'
-import DropsEditor from './marketing/DropsEditor'
 import WelcomeEditor from './marketing/WelcomeEditor'
 import SpotlightEditor from './SpotlightEditor'
 
@@ -19,7 +18,6 @@ const TABS = [
   { id: 'lookbook', label: 'Lookbook' },
   { id: 'portant', label: 'Le portant' },
   { id: 'drop', label: "Pièce à l'honneur" },
-  { id: 'calendrier', label: 'Calendrier des drops' },
   { id: 'avis', label: 'Avis clients' },
   { id: 'bandeau', label: 'Bandeau' },
   { id: 'codes', label: 'Codes promo' },
@@ -28,7 +26,7 @@ const TABS = [
 ] as const
 type TabId = (typeof TABS)[number]['id']
 
-/** Everything that makes the shop's pieces seen and sold: shootings, drops, announcements, promo codes, referral, tracked links. */
+/** Everything that makes the shop's pieces seen and sold: shootings, announcements, promo codes, referral, tracked links. */
 export default function Marketing() {
   const [params, setParams] = useSearchParams()
   const tab: TabId = TABS.find((t) => t.id === params.get('tab'))?.id ?? 'accueil'
@@ -69,7 +67,6 @@ export default function Marketing() {
       {tab === 'lookbook' && <LookbookEditor products={products} />}
       {tab === 'portant' && <RackEditor products={products} />}
       {tab === 'drop' && <SpotlightEditor />}
-      {tab === 'calendrier' && <DropsEditor />}
       {tab === 'avis' && <ReviewsModeration />}
       {tab === 'bandeau' && <AnnouncementEditor />}
       {tab === 'codes' && <PromoCodesEditor />}

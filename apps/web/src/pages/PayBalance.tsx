@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { HiCheckCircle, HiTicket } from 'react-icons/hi2'
-import { formatCurrency, paymentProgress, type Order, formatPieceNumbers } from '@trs/shared'
+import { formatCurrency, paymentProgress, type Order } from '@trs/shared'
 import Button from '../components/ui/Button'
 import Spinner from '../components/ui/Spinner'
 import PaymentProgress from '../components/orders/PaymentProgress'
@@ -40,7 +40,7 @@ export default function PayBalance() {
       <section className="container-custom max-w-lg py-24 text-center">
         <h1 className="text-3xl">Commande introuvable</h1>
         <p className="mt-3 text-gray-400">
-          La précommande <span className="font-mono text-gold">{number}</span> n'apparaît pas dans ce compte. Connectez-vous avec le compte qui l'a passée, ou contactez-nous.
+          La commande <span className="font-mono text-gold">{number}</span> n'apparaît pas dans ce compte. Connectez-vous avec le compte qui l'a passée, ou contactez-nous.
         </p>
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <Link to="/compte">
@@ -64,7 +64,7 @@ export default function PayBalance() {
       </Helmet>
       <p className="eyebrow text-center">Paiement du solde</p>
       <h1 className="mt-3 text-center text-3xl md:text-4xl">
-        Précommande <span className="font-mono text-gold">{order.preorder_number}</span>
+        Commande <span className="font-mono text-gold">{order.preorder_number}</span>
       </h1>
 
       <div className="mt-10 rounded-3xl border border-white/10 bg-dark-800 p-6">
@@ -75,7 +75,6 @@ export default function PayBalance() {
               <span className="min-w-0 truncate">
                 {i.product_name}
                 {i.quantity > 1 && ` ×${i.quantity}`}
-                {(i.piece_numbers ?? []).length > 0 && <span className="ml-2 text-gold">{formatPieceNumbers(i.piece_numbers)}</span>}
               </span>
               <span className="whitespace-nowrap">{formatCurrency(i.product_price * i.quantity)}</span>
             </li>
@@ -84,7 +83,7 @@ export default function PayBalance() {
       </div>
 
       {cancelled ? (
-        <p className="mt-8 text-center text-gray-400">Cette précommande a été annulée : il n'y a rien à payer.</p>
+        <p className="mt-8 text-center text-gray-400">Cette commande a été annulée : il n'y a rien à payer.</p>
       ) : p.outstanding > 0 ? (
         <div className="mt-8 text-center">
           <PaystackPay orderId={order.id} amount={p.paid > 0 ? p.outstanding : Math.min(order.deposit_amount, p.outstanding)} />

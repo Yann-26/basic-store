@@ -50,7 +50,7 @@ export default function Ticket() {
         <BalanceTicket order={order} contactPhone={String(settings.store_whatsapp ?? '')} />
       ) : (
         <p className="py-16 text-center text-gray-400">
-          La précommande <span className="font-mono text-gold">{number}</span> n'apparaît pas dans ce compte.
+          La commande <span className="font-mono text-gold">{number}</span> n'apparaît pas dans ce compte.
         </p>
       )}
     </section>

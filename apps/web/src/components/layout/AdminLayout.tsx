@@ -18,7 +18,7 @@ import {
   HiTag,
   HiUserGroup,
   HiUsers,
-  HiXMark, HiEnvelopeOpen, HiSparkles } from 'react-icons/hi2'
+  HiXMark, HiEnvelopeOpen, HiSparkles, HiArchiveBox } from 'react-icons/hi2'
 import { useAuth } from '../../context/AuthContext'
 import { useSettings } from '../../context/SettingsContext'
 import { useAdminApp } from '../../pwa/adminApp'
@@ -51,7 +51,8 @@ const sections = [
     title: 'Catalogue',
     links: [
       { name: 'Produits', path: '/admin/products', icon: HiShoppingBag },
-      { name: 'Marques & collections', path: '/admin/catalog', icon: HiTag },
+      { name: 'Stock', path: '/admin/stock', icon: HiArchiveBox },
+      { name: 'Collections', path: '/admin/catalog', icon: HiTag },
     ],
   },
   {

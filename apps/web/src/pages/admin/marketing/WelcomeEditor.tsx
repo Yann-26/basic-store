@@ -14,8 +14,8 @@ import Section from './Section'
 const LINKS = [
   { to: '/collection', label: 'Boutique' },
   { to: '/collection?sort=newest', label: 'Nouveautés' },
-  { to: '/drops', label: 'Calendrier des drops' },
-  { to: '/exclusivites', label: 'Exclusivités' },
+  { to: '/collection?gender=women', label: 'Femme' },
+  { to: '/collection?gender=men', label: 'Homme' },
   { to: '/about', label: 'La Maison' },
 ]
 

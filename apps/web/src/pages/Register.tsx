@@ -82,7 +82,7 @@ export default function Register() {
           <label className="flex cursor-pointer items-start gap-3 text-sm text-gray-300">
             <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[var(--color-gold)]" />
             <span>
-              Je souhaite recevoir les nouveautés, les exclusivités et des recommandations personnalisées par email.{' '}
+              Je souhaite recevoir les nouveautés, les promos et des recommandations personnalisées par email.{' '}
               <span className="text-gray-500">Désinscription en un clic à tout moment.</span>
             </span>
           </label>

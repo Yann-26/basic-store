@@ -1,4 +1,4 @@
-/** Customer reviews and the drop calendar: types and rules shared by the API and the shop. */
+/** Customer reviews: types and rules shared by the API and the shop. */
 
 export type ReviewStatus = 'pending' | 'approved' | 'rejected'
 

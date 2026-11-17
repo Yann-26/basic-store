@@ -40,7 +40,7 @@ export default function VerifyEmail() {
       <Helmet>
         <title>{`Confirmation de l'email | ${settings.store_name}`}</title>
       </Helmet>
-      <AuthShell title="Confirmation de l'email" subtitle="Dernière étape avant votre première précommande.">
+      <AuthShell title="Confirmation de l'email" subtitle="Dernière étape avant votre première commande.">
         <div className="space-y-6 text-center">
           {state === 'loading' && <Spinner size="lg" />}
           {state === 'done' && (

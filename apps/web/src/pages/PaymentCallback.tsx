@@ -9,7 +9,7 @@ import { paymentService, type PaymentVerification } from '../services/paymentSer
 import { errorMessage } from '../core/http'
 import { readJSON } from '../core/storage'
 import { useSettings } from '../context/SettingsContext'
-import type { LastOrder } from './PreorderCheckout'
+import type { LastOrder } from './Checkout'
 
 /**
  * Where Paystack sends the customer back: the API checks with Paystack whether

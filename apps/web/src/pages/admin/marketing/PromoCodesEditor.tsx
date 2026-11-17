@@ -26,7 +26,7 @@ const EMPTY: PromoCodeInput = {
 /** Ready-made ideas: one click fills the form. */
 const IDEAS: { label: string; values: Partial<PromoCodeInput> }[] = [
   { label: 'Bienvenue -10 %', values: { code: 'BIENVENUE', kind: 'percent', value: 10, description: 'Première commande', first_order_only: true } },
-  { label: 'Lancement de drop', values: { code: 'DROP', kind: 'percent', value: 15, description: 'Les 48 premières heures du drop', max_uses: 50 } },
+  { label: 'Nouvel arrivage', values: { code: 'ARRIVAGE', kind: 'percent', value: 15, description: 'Les 48 premières heures de l’arrivage', max_uses: 50 } },
   { label: 'Influenceur', values: { code: 'NOM10', kind: 'percent', value: 10, description: 'Code de l’influenceur : ses ventes se lisent dans la colonne « Utilisé »' } },
   { label: 'Pop-up store', values: { code: 'POPUP', kind: 'fixed', value: 5000, description: 'Remis au pop-up store', min_order: 20000 } },
 ]
