@@ -38,7 +38,7 @@ function Hero({ image, mobileImage, title, subtitle }: { image: string; mobileIm
           </h1>
           <p className="mt-5 max-w-xs text-[15px] leading-relaxed text-[#F6F3EE]/90">{subtitle}</p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link to="/collection?gender=women" className="bg-[#111] px-6 py-3.5 text-xs font-medium uppercase tracking-[0.14em] text-white transition-colors hover:bg-black">
+            <Link to="/collection?gender=women" className="bg-[#111] px-6 py-3.5 text-xs font-medium uppercase tracking-[0.14em] text-[#fff] transition-colors hover:bg-black">
               Shop femme
             </Link>
             <Link to="/collection?gender=men" className="bg-[#F6F3EE] px-6 py-3.5 text-xs font-medium uppercase tracking-[0.14em] text-[#111] transition-colors hover:bg-white">

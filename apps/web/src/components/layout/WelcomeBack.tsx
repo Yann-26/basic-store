@@ -62,7 +62,7 @@ export default function WelcomeBack() {
             <HiXMark className="h-5 w-5" />
           </button>
           <p className="pr-6 font-display text-xl">{title}</p>
-          <p className="mt-1 text-sm text-gray-400">{user ? 'Votre sélection vous attend.' : 'Nos nouveautés n’attendent que vous.'}</p>
+          <p className="mt-1 text-sm text-gray-400">{user ? 'Votre panier vous attend.' : 'Nos nouveautés n’attendent que vous.'}</p>
 
           {last && (
             <Link to={`/product/${last.slug}`} onClick={() => setOpen(false)} className="mt-4 flex items-center gap-3 rounded-2xl bg-white/5 p-2 pr-4 transition-colors hover:bg-white/10">

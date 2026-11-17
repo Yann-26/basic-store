@@ -1,7 +1,29 @@
-# ★ THE RISING STAR
+# Basic Store
 
-Premium fashion house — clothing, shoes, bags, accessories and jewelry — sold on a
-**pre-order** model (deposit online, balance on delivery) across Côte d'Ivoire.
+**La qualité à bon prix.** Online shop of [Basic Store](https://www.instagram.com/basicstoreci/),
+a physical fashion store in Abidjan (Angré Nouveau CHU, Djorogobité 1): customers order
+online and are delivered anywhere in Côte d'Ivoire (or pick up in the shop). The shop
+manages its stock, orders and payments from the back-office.
+
+> Started from the THE RISING STAR codebase (pre-order fashion house). Its pre-order
+> features (deposits, drops, exclusives, numbered series, 3D viewer) were removed.
+
+## How orders work
+
+| Step | What happens |
+| ---- | ------------ |
+| Checkout | Customer picks a **delivery zone** (Abidjan, intérieur, retrait en boutique — fees set in Paramètres → Livraison) and a **payment mode**: *à la livraison* (cash / Mobile Money to the rider) or *en ligne* (100 % via Paystack). |
+| Order placed | Status `pending` (Nouvelle). **Stock is reserved atomically** per size (`reserve_order_stock`); if a size sold out meanwhile, the order is refused. |
+| Online, unpaid | Cancelled automatically after 2 h by the scheduler (`/api/cron/newsletter`), stock released. |
+| Back-office | `pending → confirmed → preparing → out_for_delivery → delivered`. Marking a cash-on-delivery order *Livrée* offers to record the cash collected. |
+| Cancel / return | `cancelled` or `returned` (from `delivered`) puts the units back in stock, once (`release_order_stock`). |
+
+**Stock** (Admin → Stock): quantity per size, low-stock alerts (threshold per product),
+every movement logged in `stock_movements` (online order, cancellation, return, restock,
+in-store sale, inventory correction). Quantities only change through orders or the Stock
+page, never by editing a product.
+
+**Migration to run**: `supabase/migrations/20261117000000_basic_store.sql` (after the others).
 
 This repository is an **npm-workspaces monorepo**:
 

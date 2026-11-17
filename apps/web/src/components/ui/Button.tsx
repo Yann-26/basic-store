@@ -47,10 +47,10 @@ export default function Button({
   return (
     <motion.button
       type={type}
-      whileHover={{ scale: inactive ? 1 : 1.02 }}
+      whileHover={{ scale: 1 }}
       whileTap={{ scale: inactive ? 1 : 0.98 }}
       className={clsx(
-        'inline-flex items-center justify-center gap-2 rounded-full font-semibold uppercase tracking-[0.15em] transition-all duration-200',
+        'inline-flex items-center justify-center gap-2 font-medium uppercase tracking-[0.14em] transition-all duration-200',
         variants[variant],
         sizes[size],
         inactive && 'cursor-not-allowed opacity-50',
