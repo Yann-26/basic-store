@@ -7,7 +7,7 @@ afterEach(() => resetBrand())
 describe('shop identity read from the dashboard settings', () => {
   it('falls back to the defaults while nothing is set', () => {
     applyBrandSettings({})
-    expect(brand().name).toBe('SCION CARON')
+    expect(brand().name).toBe('Basic Store')
   })
 
   it('takes the name, signature, address and colour from the settings', () => {
@@ -17,7 +17,7 @@ describe('shop identity read from the dashboard settings', () => {
 
   it('ignores a colour that is not a hex value', () => {
     applyBrandSettings({ primary_color: 'red' })
-    expect(brand().color).toBe('#D4AF37')
+    expect(brand().color).toBe('#0A0A0A')
   })
 
   it('shows up in the emails', () => {
@@ -37,6 +37,6 @@ describe('shop identity read from the dashboard settings', () => {
     await refreshBrand(failing) // stale: tries, fails, keeps the defaults
     await refreshBrand(failing) // within the minute: does not try again
     expect(calls).toBe(1)
-    expect(brand().name).toBe('SCION CARON')
+    expect(brand().name).toBe('Basic Store')
   })
 })

@@ -358,7 +358,7 @@ export default function AdminCustomers() {
                           <div className="text-right">
                             <p className="font-bold">{formatCurrency(order.total_price)}</p>
                             <p className="text-xs text-gray-400">
-                              Acompte : {formatCurrency(order.deposit_amount)}
+                              {order.deposit_amount > 0 ? `En ligne : ${formatCurrency(order.deposit_amount)}` : "Paiement à la livraison"}
                             </p>
                           </div>
                         </div>

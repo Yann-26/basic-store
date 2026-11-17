@@ -1,4 +1,4 @@
-import { ACTIVE_ORDER_STATUSES, NEXT_ORDER_STATUS, ORDER_STATUS_LABELS, RECAPTCHA_ACTIONS, type ManualPaymentMethod, type Order, type OrderStatus } from '@trs/shared'
+import { ACTIVE_ORDER_STATUSES, NEXT_ORDER_STATUS, ORDER_STATUS_LABELS, RECAPTCHA_ACTIONS, type CheckoutPaymentMode, type DeliveryZone, type ManualPaymentMethod, type Order, type OrderStatus } from '@trs/shared'
 import { http, toQuery } from '../core/http'
 import type { CheckoutCustomer } from '../types/cart'
 
@@ -10,20 +10,18 @@ export const NEXT_STATUS = NEXT_ORDER_STATUS
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
   pending: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
   confirmed: 'bg-sky-500/10 text-sky-400 border-sky-500/30',
-  sourcing: 'bg-violet-500/10 text-violet-400 border-violet-500/30',
-  ordered_supplier: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30',
-  shipped_supplier: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
-  received_warehouse: 'bg-teal-500/10 text-teal-400 border-teal-500/30',
-  quality_check: 'bg-white/10 text-white border-white/20',
+  preparing: 'bg-violet-500/10 text-violet-400 border-violet-500/30',
   out_for_delivery: 'bg-gold/10 text-gold border-gold/30',
   delivered: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
   cancelled: 'bg-red-500/10 text-red-400 border-red-500/30',
+  returned: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
 }
 
 export const PAYMENT_STATUS_LABELS: Record<string, string> = {
   pending: 'En attente',
-  deposit_paid: 'Acompte payé',
-  paid: 'Soldé',
+  deposit_paid: 'Payé en partie',
+  partial: 'Payé en partie',
+  paid: 'Payé',
   refunded: 'Remboursé',
   failed: 'Échoué',
 }
@@ -32,12 +30,15 @@ export interface CreateOrderResult {
   order_id: string
   customer_id: string
   preorder_number: string
+  payment_method: CheckoutPaymentMode
+  subtotal_price: number
+  discount_amount: number
+  delivery_fee: number
   total_price: number
-  deposit_amount: number
-  remaining_amount: number
-  deposit_percentage: number
-  subtotal_price?: number
-  discount_amount?: number
+  /** Paid online now (online payment), else 0. */
+  due_now: number
+  /** Collected by the rider or in the shop. */
+  due_on_delivery: number
   promo_code?: string | null
   email_sent: boolean
 }
@@ -54,7 +55,8 @@ export const ordersService = {
   create(input: {
     customer: CheckoutCustomer
     items: { product_id: string; size: string; color?: string; quantity: number }[]
-    payment_method: string
+    payment_method: CheckoutPaymentMode
+    delivery_zone: DeliveryZone
     promo_code?: string
   }) {
     return http.post<CreateOrderResult>('/orders', input, RECAPTCHA_ACTIONS.checkout)

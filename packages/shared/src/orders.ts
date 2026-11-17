@@ -3,64 +3,50 @@ import { LEGACY_PREFIXES, ORDER_NUMBER_PREFIX } from './brand'
 export const ORDER_STATUSES = [
   'pending',
   'confirmed',
-  'sourcing',
-  'ordered_supplier',
-  'shipped_supplier',
-  'received_warehouse',
-  'quality_check',
+  'preparing',
   'out_for_delivery',
   'delivered',
   'cancelled',
+  'returned',
 ] as const
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number]
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  pending: 'En attente',
+  pending: 'Nouvelle',
   confirmed: 'Confirmée',
-  sourcing: 'En fabrication',
-  ordered_supplier: 'Commandé fournisseur',
-  shipped_supplier: 'Expédié fournisseur',
-  received_warehouse: 'Reçu entrepôt',
-  quality_check: 'Contrôle qualité',
+  preparing: 'En préparation',
   out_for_delivery: 'En livraison',
   delivered: 'Livrée',
   cancelled: 'Annulée',
+  returned: 'Retournée',
 }
 
-/**
- * Steps of the resale model (supplier abroad, warehouse). The shop now makes its
- * own pieces, so they are no longer offered; orders already in one still display.
- */
-export const LEGACY_ORDER_STATUSES: readonly OrderStatus[] = ['ordered_supplier', 'shipped_supplier', 'received_warehouse']
-
-/** The statuses an order can be moved to today. */
-export const ACTIVE_ORDER_STATUSES: readonly OrderStatus[] = ORDER_STATUSES.filter((s) => !LEGACY_ORDER_STATUSES.includes(s))
+/** The statuses an admin can pick (every one: the flow is short). */
+export const ACTIVE_ORDER_STATUSES: readonly OrderStatus[] = ORDER_STATUSES
 
 /** Linear happy-path workflow used by the admin "next step" button. */
 export const NEXT_ORDER_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   pending: 'confirmed',
-  confirmed: 'sourcing',
-  sourcing: 'quality_check',
-  ordered_supplier: 'quality_check',
-  shipped_supplier: 'quality_check',
-  received_warehouse: 'quality_check',
-  quality_check: 'out_for_delivery',
+  confirmed: 'preparing',
+  preparing: 'out_for_delivery',
   out_for_delivery: 'delivered',
 }
 
+/** Statuses whose stock goes back on the shelves. */
+export const STOCK_RELEASING_STATUSES: readonly OrderStatus[] = ['cancelled', 'returned']
+
 export const TRACKING_STEPS: readonly { status: OrderStatus; label: string; description: string }[] = [
-  { status: 'pending', label: 'Commande reçue', description: 'Votre commande a été enregistrée avec succès.' },
-  { status: 'confirmed', label: 'Confirmée', description: 'Votre acompte a été reçu et la commande est validée.' },
-  { status: 'sourcing', label: 'En fabrication', description: 'Votre pièce est en cours de fabrication dans notre atelier à Abidjan.' },
-  { status: 'quality_check', label: 'Contrôle qualité', description: 'Nous vérifions les coutures, le marquage et la taille de votre pièce.' },
-  { status: 'out_for_delivery', label: 'En cours de livraison', description: 'Votre commande est en route vers votre adresse.' },
-  { status: 'delivered', label: 'Livrée', description: 'Votre commande a été livrée. Portez-la avec élégance.' },
+  { status: 'pending', label: 'Commande reçue', description: 'Votre commande a bien été enregistrée. Nous vous appelons pour la confirmer.' },
+  { status: 'confirmed', label: 'Confirmée', description: 'Votre commande est confirmée et vos articles sont réservés.' },
+  { status: 'preparing', label: 'En préparation', description: 'Nous préparons et emballons vos articles en boutique.' },
+  { status: 'out_for_delivery', label: 'En cours de livraison', description: 'Votre colis est en route. Le livreur vous appelle avant d’arriver.' },
+  { status: 'delivered', label: 'Livrée', description: 'Votre commande a été livrée. Merci pour votre confiance !' },
 ]
 
-/** The step of the tracking timeline an order sits on (old supplier steps count as "en fabrication"). */
+/** The step of the tracking timeline an order sits on. */
 export function trackingStatus(status: OrderStatus): OrderStatus {
-  return LEGACY_ORDER_STATUSES.includes(status) ? 'sourcing' : status
+  return status
 }
 
 export const PAYMENT_STATUSES = ['pending', 'success', 'failed', 'refunded'] as const
@@ -70,16 +56,45 @@ export function isOrderStatus(value: unknown): value is OrderStatus {
   return typeof value === 'string' && (ORDER_STATUSES as readonly string[]).includes(value)
 }
 
-/** Delivered/cancelled orders are terminal: no further transitions allowed. */
+/**
+ * Cancelled and returned orders are closed for good (their stock went back).
+ * A delivered order can only be marked as returned.
+ */
 export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
   if (from === to) return true
-  if (from === 'delivered' || from === 'cancelled') return false
+  if (from === 'cancelled' || from === 'returned') return false
+  if (from === 'delivered') return to === 'returned'
+  if (to === 'returned') return false
   return true
+}
+
+// ---------------------------------------------------------------- checkout ---
+
+/** How the customer pays: everything online now, or cash / Mobile Money to the rider. */
+export const CHECKOUT_PAYMENT_MODES = ['cash_on_delivery', 'online'] as const
+export type CheckoutPaymentMode = (typeof CHECKOUT_PAYMENT_MODES)[number]
+export const CHECKOUT_PAYMENT_LABELS: Record<CheckoutPaymentMode, string> = {
+  cash_on_delivery: 'Paiement à la livraison',
+  online: 'Payer en ligne maintenant',
+}
+export function isCheckoutPaymentMode(value: unknown): value is CheckoutPaymentMode {
+  return typeof value === 'string' && (CHECKOUT_PAYMENT_MODES as readonly string[]).includes(value)
+}
+
+export const DELIVERY_ZONES = ['abidjan', 'interior', 'pickup'] as const
+export type DeliveryZone = (typeof DELIVERY_ZONES)[number]
+export const DELIVERY_ZONE_LABELS: Record<DeliveryZone, string> = {
+  abidjan: 'Livraison à Abidjan',
+  interior: 'Livraison à l’intérieur du pays',
+  pickup: 'Retrait en boutique (Angré)',
+}
+export function isDeliveryZone(value: unknown): value is DeliveryZone {
+  return typeof value === 'string' && (DELIVERY_ZONES as readonly string[]).includes(value)
 }
 
 /**
  * Order numbers are public tracking keys, so they must not be guessable.
- * Current format: SC-2026-7KQ4M2XA (8 random chars, ~8.5e11 combinations per year).
+ * Current format: BS-2026-7KQ4M2XA (8 random chars, ~8.5e11 combinations per year).
  * Legacy format TRS-20261234 (4 digits) is still accepted for existing orders.
  */
 const ORDER_CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ' // no 0/O, 1/I/L
@@ -113,7 +128,7 @@ export function generateOrderNumber(now = new Date(), code: (length: number) => 
 
 // ---------------------------------------------------------------- payments ---
 
-/** How a payment reached the shop: Wave link (confirmed by an admin), Paystack (earlier orders), or by hand. */
+/** How a payment reached the shop: online (Paystack), an older Wave link, or recorded by hand (cash at delivery…). */
 export const PAYMENT_METHODS = ['wave', 'paystack', 'cash', 'mobile_money', 'bank_transfer', 'other'] as const
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
 /** The methods an admin can record for money received outside the website. */
@@ -123,16 +138,16 @@ export type ManualPaymentMethod = (typeof MANUAL_PAYMENT_METHODS)[number]
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   wave: 'Wave',
   paystack: 'En ligne (Paystack)',
-  cash: 'Espèces',
-  mobile_money: 'Mobile Money (hors site)',
+  cash: 'Espèces (livraison / boutique)',
+  mobile_money: 'Mobile Money (au livreur)',
   bank_transfer: 'Virement',
   other: 'Autre',
 }
 
-/** deposit = the first payment of an order; balance = any payment after it. */
+/** deposit = the first payment of an order; balance = any payment after it (stored names, kept from earlier). */
 export const PAYMENT_KINDS = ['deposit', 'balance'] as const
 export type PaymentKind = (typeof PAYMENT_KINDS)[number]
-export const PAYMENT_KIND_LABELS: Record<PaymentKind, string> = { deposit: 'Acompte', balance: 'Solde' }
+export const PAYMENT_KIND_LABELS: Record<PaymentKind, string> = { deposit: 'Paiement', balance: 'Complément' }
 
 /** Where an order stands with money really received. */
 export type PaymentProgressState = 'unpaid' | 'partial' | 'paid' | 'refunded'
@@ -149,7 +164,7 @@ export interface PaymentProgress {
 
 export const PAYMENT_PROGRESS_LABELS: Record<PaymentProgressState, string> = {
   unpaid: 'Non payé',
-  partial: 'Acompte payé',
+  partial: 'Payé en partie',
   paid: 'Payé 100 %',
   refunded: 'Remboursé',
 }

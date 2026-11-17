@@ -1,4 +1,4 @@
-import type { Product, Product3D, ProductListQuery } from '@trs/shared'
+import type { Product, ProductListQuery } from '@trs/shared'
 import { http, toQuery } from '../core/http'
 import { prepareUpload } from '../core/uploadPrep'
 import type { ProductPage } from './catalogService'
@@ -29,35 +29,6 @@ export const productsService = {
   },
   delete(id: string) {
     return http.delete<{ success: boolean; deactivated: boolean; message: string }>(`/admin/products/${id}`)
-  },
-  /**
-   * Sends a GLB straight to Storage (too big for the API): the API issues a
-   * one-time URL, the file goes there, and its public URL comes back.
-   */
-  async uploadModel3D(productId: string, file: File, onProgress?: (ratio: number) => void): Promise<string> {
-    const head = new Uint8Array(await file.slice(0, 4).arrayBuffer())
-    if (String.fromCharCode(...head) !== 'glTF') throw new Error('Ce fichier n’est pas un modèle GLB (glTF binaire).')
-    const { uploadUrl, publicUrl } = await http.post<{ uploadUrl: string; publicUrl: string }>(`/admin/products/${productId}/model-3d/upload`, { size: file.size })
-    const form = new FormData()
-    form.append('cacheControl', '31536000')
-    form.append('', new File([file], file.name, { type: 'model/gltf-binary' }))
-    await new Promise<void>((resolve, reject) => {
-      // XHR rather than fetch: it reports the upload's progress.
-      const xhr = new XMLHttpRequest()
-      xhr.open('PUT', uploadUrl)
-      xhr.setRequestHeader('x-upsert', 'false')
-      xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total)
-      xhr.onload = () => (xhr.status < 300 ? resolve() : reject(new Error(`Envoi refusé (${xhr.status})`)))
-      xhr.onerror = () => reject(new Error('Envoi interrompu, vérifiez la connexion.'))
-      xhr.send(form)
-    })
-    return publicUrl
-  },
-  saveModel3D(productId: string, model: Product3D) {
-    return http.put<Product>(`/admin/products/${productId}/model-3d`, model)
-  },
-  removeModel3D(productId: string) {
-    return http.delete<Product>(`/admin/products/${productId}/model-3d`)
   },
   async uploadMedia(productId: string, file: File, _mediaType: 'image' | 'video', isMain = false, color: string | null = null) {
     const form = new FormData()

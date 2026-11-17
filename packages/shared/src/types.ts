@@ -2,7 +2,7 @@ import type { Gender, ProductCategoryId } from './catalog'
 import type { OrderStatus, PaymentKind, PaymentMethod, PaymentStatus } from './orders'
 
 export type ProductStatus = 'available' | 'unavailable' | 'limited'
-export type BadgeVariant = 'new' | 'bestseller' | 'limited' | 'exclusive' | 'soldout' | 'sale'
+export type BadgeVariant = 'new' | 'bestseller' | 'limited' | 'lowstock' | 'soldout' | 'sale'
 
 export interface Brand {
   id: string
@@ -17,25 +17,6 @@ export interface Brand {
 }
 
 export interface Collection {
-  id: string
-  name: string
-  slug: string
-  description?: string | null
-  brand_id: string | null
-  image_url?: string | null
-  banner_url?: string | null
-  is_active: boolean
-  sort_order: number
-  created_at?: string
-  brand?: Pick<Brand, 'id' | 'name' | 'slug'> | null
-}
-
-/**
- * Exclusivité: a group of rare, premium pieces created by the admin
- * ("Nike JA Morant", …). Its products are flagged `is_exclusive` and only
- * listed on the Exclusivités page.
- */
-export interface Exclusive {
   id: string
   name: string
   slug: string
@@ -85,31 +66,13 @@ export interface Product {
   release_date?: string | null
   brand_id?: string | null
   collection_id?: string | null
-  /** Exclusive pieces are only listed on the Exclusivités page (still reachable by URL, search and checkout). */
-  is_exclusive?: boolean
-  exclusive_id?: string | null
   brand?: Pick<Brand, 'id' | 'name' | 'slug'> | null
   collection?: Pick<Collection, 'id' | 'name' | 'slug'> | null
-  exclusive?: Pick<Exclusive, 'id' | 'name' | 'slug'> | null
   product_media?: ProductMedia[]
-  /** Photos taken around the piece on a turntable, in order: the storefront lets visitors turn it. */
-  spin_frames?: string[]
-  /** Real-time 3D model and how the shop shows it (back-office → Produits → 3D). */
-  model_3d?: import('./model3d').Product3D | null
-  /** Pieces to sell before the series is made (production paid by the preorders); null: no goal. */
-  /** Limited series: number of pieces made, each numbered (e.g. 50 → "Pièce 27 / 50"); null: not numbered. */
-  series_size?: number | null
-  /** Pieces of the series already given a number (when their order's first payment came in). */
-  pieces_numbered?: number
-  /** The upcoming drop of this piece (not orderable before it opens, except early access). */
-  drop?: import('./reviews').ProductDrop | null
-  preorder_goal?: number | null
-  /** When the preorders of the series close (ISO date), if set. */
-  preorder_deadline?: string | null
-  /** Product page only: pieces already paid, counted towards the goal. */
-  preorder_count?: number
-  /** Product page only: pre-orders paid (deposit at least) over the last 24 hours. */
-  recent_preorders?: number
+  /** Stock per size (e.g. { "M": 4, "L": 0 }); a product without sizes uses `stock`. */
+  size_stock?: Record<string, number>
+  /** Alert threshold: the back-office flags the product when its stock falls to it or below. */
+  low_stock_threshold?: number
   created_at?: string
   updated_at?: string
 }
@@ -120,11 +83,6 @@ export interface ProductListQuery {
   gender?: string
   brand?: string
   collection?: string
-  /**
-   * Exclusive pieces: omitted → regular pieces only (shop, home);
-   * `all` → both; `only` → exclusive pieces only; any other value → the pieces of that exclusivité (slug).
-   */
-  exclusive?: string
   search?: string
   minPrice?: number
   maxPrice?: number
@@ -163,8 +121,6 @@ export interface OrderItem {
   size: string | null
   color?: string | null
   quantity: number
-  /** Numbers of these pieces in their series, given once the order's first payment is in. */
-  piece_numbers?: number[]
 }
 
 export interface OrderTrackingEntry {
@@ -202,7 +158,13 @@ export interface Order {
   admin_notes?: string | null
   delivery_address?: string | null
   delivery_city?: string | null
+  /** abidjan | interior | pickup */
+  delivery_zone?: string | null
+  delivery_fee?: number
+  /** True while the order holds its units (given back when cancelled or returned). */
+  stock_reserved?: boolean
   estimated_delivery?: string | null
+  returned_at?: string | null
   created_at: string
   updated_at?: string
   customers?: Partial<Customer> | null

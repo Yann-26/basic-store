@@ -176,27 +176,3 @@ export function galleryForColor<M extends { color?: string | null }>(media: read
   const shared = media.filter((m) => !m.color || !colors.some((c) => sameColor(c, m.color)))
   return [...own, ...shared]
 }
-
-/** True once the preorders of a piece sold to a goal have closed: it can no longer be ordered. */
-export function preordersClosed(product: { preorder_deadline?: string | null }, now: Date = new Date()): boolean {
-  if (!product.preorder_deadline) return false
-  const end = Date.parse(product.preorder_deadline)
-  return !Number.isNaN(end) && end <= now.getTime()
-}
-
-/** A numbered series whose every piece has been given: the piece is sold out for good. */
-export function seriesComplete(product: { series_size?: number | null; pieces_numbered?: number }): boolean {
-  return !!product.series_size && (product.pieces_numbered ?? 0) >= product.series_size
-}
-
-/** Pieces of a numbered series still to be given, or null when the piece is not numbered. */
-export function seriesLeft(product: { series_size?: number | null; pieces_numbered?: number }): number | null {
-  return product.series_size ? Math.max(0, product.series_size - (product.pieces_numbered ?? 0)) : null
-}
-
-/** "N° 27 / 50", or "N° 27 et 28 / 50" for several pieces of the same line; '' before numbering. */
-export function formatPieceNumbers(numbers: number[] | undefined, seriesSize?: number | null): string {
-  if (!numbers || numbers.length === 0) return ''
-  const list = numbers.length === 1 ? String(numbers[0]) : `${numbers.slice(0, -1).join(', ')} et ${numbers[numbers.length - 1]}`
-  return `N° ${list}${seriesSize ? ` / ${seriesSize}` : ''}`
-}

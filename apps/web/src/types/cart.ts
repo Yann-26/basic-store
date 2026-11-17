@@ -7,6 +7,8 @@ export interface CartItem {
   size: string
   color?: string
   category?: string
+  /** Units the shop had of this size when it was added (the API checks again at checkout). */
+  maxQuantity?: number
   quantity: number
 }
 

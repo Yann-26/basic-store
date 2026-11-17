@@ -25,7 +25,7 @@ const fromLocalInput = (value: string) => {
 
 const LAYOUTS = [
   { id: 'maison', name: 'Maison', hint: 'La pièce plein écran, sobre et lumineuse.' },
-  { id: 'launch', name: 'Lancement', hint: 'Compte à rebours avant la sortie, pour les précommandes.' },
+  { id: 'launch', name: 'Lancement', hint: 'Compte à rebours avant la mise en vente.' },
 ] as const
 
 /** "Pièce à l'honneur": the exclusive piece shown full screen on top of the home page. */

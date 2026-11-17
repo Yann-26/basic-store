@@ -14,7 +14,7 @@ export default function OrderTimeline({ status, timeline }: Props) {
     return (
       <div className="flex items-center gap-4 rounded-2xl border border-red-500/30 bg-red-500/5 p-5">
         <HiXMark className="h-6 w-6 text-red-400" />
-        <p className="text-sm text-red-300">Cette précommande a été annulée. Contactez-nous pour toute question.</p>
+        <p className="text-sm text-red-300">Cette commande a été annulée. Contactez-nous pour toute question.</p>
       </div>
     )
   }

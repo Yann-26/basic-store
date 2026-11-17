@@ -1,5 +1,6 @@
 import { normalizeSizes, type Order, type OrderItem, type OrderPayment, type OrderStatus, type OrderTrackingEntry } from '@trs/shared'
 import type { NewOrder, OrderListQuery, OrderRepository } from '@/application/ports'
+import { OutOfStockError } from '@/domain/errors'
 import { db, safeSearchTerm, unwrap } from '../client'
 
 type Row = Record<string, unknown>
@@ -13,7 +14,6 @@ function toOrder(row: Row): Order {
         ...(i as unknown as OrderItem),
         product_price: Number(i.product_price) || 0,
         quantity: Number(i.quantity) || 1,
-        piece_numbers: Array.isArray(i.piece_numbers) ? (i.piece_numbers as unknown[]).map(Number).filter(Number.isFinite) : [],
         size: i.size == null ? null : normalizeSizes([i.size])[0] ?? null,
       }))
     : undefined
@@ -34,6 +34,7 @@ function toOrder(row: Row): Order {
     deposit_percentage: Number(row.deposit_percentage) || 0,
     subtotal_price: row.subtotal_price == null ? null : Number(row.subtotal_price),
     discount_amount: Number(row.discount_amount) || 0,
+    delivery_fee: Number(row.delivery_fee) || 0,
     order_items: items,
     order_tracking: tracking,
     payments,
@@ -152,14 +153,31 @@ export class SupabaseOrderRepository implements OrderRepository {
     return (data ?? []).map((r) => toOrder(r as Row))
   }
 
-  async numberPieces(orderId: string) {
-    const rows = unwrap(await db().rpc('number_order_pieces', { p_order_id: orderId }), 'orders.numberPieces') as Row[] | null
-    return (rows ?? []).map((r) => ({
-      order_item_id: String(r.order_item_id),
-      product_id: r.product_id == null ? null : String(r.product_id),
-      piece_numbers: Array.isArray(r.piece_numbers) ? (r.piece_numbers as unknown[]).map(Number) : [],
-      series_size: r.series_size == null ? null : Number(r.series_size),
-    }))
+  async reserveStock(orderId: string) {
+    const { error } = await db().rpc('reserve_order_stock', { p_order_id: orderId })
+    if (!error) return
+    throw OutOfStockError.fromDatabase(error.message) ?? new Error(`[orders.reserveStock] ${error.message}`)
+  }
+
+  async listUnpaidOnline(before: string, limit: number) {
+    const data = unwrap(
+      await db()
+        .from('orders')
+        .select('*, customers(first_name, last_name, email)')
+        .eq('status', 'pending')
+        .eq('payment_method', 'online')
+        .eq('amount_paid', 0)
+        .lt('created_at', before)
+        .order('created_at', { ascending: true })
+        .limit(limit),
+      'orders.listUnpaidOnline',
+    )
+    return (data ?? []).map((r) => toOrder(r as Row))
+  }
+
+  async releaseStock(orderId: string, reason: 'cancel' | 'return') {
+    const data = unwrap(await db().rpc('release_order_stock', { p_order_id: orderId, p_reason: reason }), 'orders.releaseStock')
+    return data === true
   }
 
   async applyPayment(orderId: string, amount: number) {

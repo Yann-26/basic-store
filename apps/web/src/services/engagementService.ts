@@ -43,6 +43,10 @@ export interface TrackingView {
   total_price: number
   deposit_amount: number
   remaining_amount: number
+  amount_paid: number
+  payment_method: string
+  delivery_fee: number
+  delivery_zone: string | null
   delivery_city: string | null
   estimated_delivery: string | null
   created_at: string
@@ -55,9 +59,6 @@ export interface TrackingView {
     color: string | null
     quantity: number
     product_price: number
-    /** Numbers of the pieces in their series (once the deposit is paid). */
-    piece_numbers?: number[]
-    series_size?: number | null
   }[]
   timeline: { status: OrderStatus; notes: string; location: string | null; created_at: string }[]
 }

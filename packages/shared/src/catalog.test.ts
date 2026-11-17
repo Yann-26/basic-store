@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatPieceNumbers, galleryForColor, photosOfColor, preordersClosed, sameColor, seriesComplete, seriesLeft, shuffleBySeed } from './catalog'
+import { galleryForColor, photosOfColor, sameColor, shuffleBySeed } from './catalog'
 
 const ids = Array.from({ length: 40 }, (_, i) => `product-${i}`)
 const shuffle = (seed: number) => shuffleBySeed(ids, (id) => id, seed)
@@ -48,38 +48,5 @@ describe('photos per colour', () => {
     expect(ids(galleryForColor(media, colors, null))).toHaveLength(5)
     expect(ids(galleryForColor(media, colors, 'Noir'))).toHaveLength(5)
     expect(photosOfColor(media, colors, 'Vert')).toEqual([])
-  })
-})
-
-describe('preordersClosed', () => {
-  const now = new Date('2026-11-21T19:00:00Z')
-  it('is open without a closing date, or before it', () => {
-    expect(preordersClosed({}, now)).toBe(false)
-    expect(preordersClosed({ preorder_deadline: null }, now)).toBe(false)
-    expect(preordersClosed({ preorder_deadline: '2026-11-21T19:00:01Z' }, now)).toBe(false)
-  })
-  it('is closed from the closing date on', () => {
-    expect(preordersClosed({ preorder_deadline: '2026-11-21T19:00:00Z' }, now)).toBe(true)
-    expect(preordersClosed({ preorder_deadline: '2026-11-20T10:00:00Z' }, now)).toBe(true)
-  })
-  it('ignores an unreadable date', () => {
-    expect(preordersClosed({ preorder_deadline: 'bientôt' }, now)).toBe(false)
-  })
-})
-
-describe('numbered series', () => {
-  it('knows when a series is complete and what it has left', () => {
-    expect(seriesComplete({ series_size: 50, pieces_numbered: 50 })).toBe(true)
-    expect(seriesComplete({ series_size: 50, pieces_numbered: 49 })).toBe(false)
-    expect(seriesComplete({ series_size: null, pieces_numbered: 0 })).toBe(false)
-    expect(seriesLeft({ series_size: 50, pieces_numbered: 47 })).toBe(3)
-    expect(seriesLeft({ series_size: null })).toBeNull()
-  })
-
-  it('writes the numbers of a line', () => {
-    expect(formatPieceNumbers([27], 50)).toBe('N° 27 / 50')
-    expect(formatPieceNumbers([27, 28, 29], 50)).toBe('N° 27, 28 et 29 / 50')
-    expect(formatPieceNumbers([4])).toBe('N° 4')
-    expect(formatPieceNumbers([], 50)).toBe('')
   })
 })

@@ -24,14 +24,15 @@ import AnnouncementBar from './AnnouncementBar'
 /** The sections shown in the header on a computer, and first in the menu. */
 const SECTIONS = [
   { name: 'Nouveautés', path: '/collection?sort=newest' },
-  { name: 'Boutique', path: '/collection' },
-  { name: 'Exclusivités', path: '/exclusivites' },
-  { name: 'Drops', path: '/drops' },
-  { name: 'Looks', path: '/looks' },
-  { name: 'La Maison', path: '/about' },
+  { name: 'Femme', path: '/collection?gender=women' },
+  { name: 'Homme', path: '/collection?gender=men' },
+  { name: 'Chaussures', path: '/collection?category=shoes' },
+  { name: 'Accessoires', path: '/collection?category=accessories' },
+  { name: 'Tout voir', path: '/collection' },
 ]
 
 const SERVICES = [
+  { name: 'La boutique', path: '/about' },
   { name: 'Suivre ma commande', path: '/track' },
   { name: 'Contact', path: '/contact' },
   { name: 'FAQ', path: '/faq' },
@@ -75,7 +76,7 @@ export default function Navbar() {
     <>
       {settings.announcement_text && <AnnouncementBar text={settings.announcement_text} />}
 
-      <header className="sticky top-0 z-40 bg-primary-black">
+      <header className="sticky top-0 z-40 border-b border-dark-600 bg-primary-black">
         <nav className="flex h-[4.5rem] items-center gap-6 px-4 sm:px-6 lg:px-8" aria-label="Navigation principale">
           <button onClick={() => setMenuOpen(true)} className="-ml-2 p-2 lg:hidden" aria-label="Ouvrir le menu" aria-expanded={menuOpen}>
             <HiBars3 className="h-6 w-6" />
@@ -83,7 +84,7 @@ export default function Navbar() {
 
           <Logo size="md" />
 
-          <ul className="ml-6 hidden items-center gap-7 lg:flex">
+          <ul className="mx-auto hidden items-center gap-8 lg:flex">
             {SECTIONS.map((s) => (
               <li key={s.path}>
                 <NavLink to={s.path} className={clsx(sectionLink, isCurrent(s.path) ? 'font-semibold' : 'text-gray-300')}>
@@ -93,7 +94,7 @@ export default function Navbar() {
             ))}
           </ul>
 
-          <div className="ml-auto flex items-center gap-0.5 sm:gap-1">
+          <div className="ml-auto flex items-center gap-0.5 sm:gap-1 lg:ml-0">
             <button onClick={() => setSearchOpen(true)} className={iconButton} aria-label="Rechercher">
               <HiMagnifyingGlass className="h-5 w-5" />
             </button>

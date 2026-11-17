@@ -1,30 +1,26 @@
 import {
-  resolveDepositPercentage,
-  splitPayment,
   MAX_QUANTITY_PER_LINE,
   ORDER_STATUS_LABELS,
+  STOCK_RELEASING_STATUSES,
   TRACKING_STEPS,
   canTransition,
   computeOrderTotals,
   generateOrderNumber,
   isValidOrderNumber,
   ONE_SIZE,
-  preordersClosed,
-  dropAccess,
-  earlyAccessAt,
-  seriesComplete,
-  seriesLeft,
+  resolveDeliverySettings,
+  stockForSize,
+  type CheckoutPaymentMode,
   type Customer,
+  type DeliveryZone,
   type Order,
   type OrderItem,
   type OrderStatus,
 } from '@trs/shared'
-import type { CustomerRepository, Mailer, OrderRepository, ProductRepository, SettingsRepository, DropRepository } from '../ports'
-import { ConflictError, EmailNotVerifiedError, NotFoundError, ValidationError } from '@/domain/errors'
+import type { CustomerRepository, Mailer, OrderRepository, ProductRepository, SettingsRepository } from '../ports'
+import { ConflictError, EmailNotVerifiedError, NotFoundError, OutOfStockError, ValidationError } from '@/domain/errors'
 import { adminNewOrderEmail, orderConfirmationEmail, statusUpdateEmail } from '../templates/emails'
 import { brand } from '../brand'
-import { upcomingDrops } from '../drop-gate'
-import { dropDate } from './drops'
 import type { AppliedPromo, makePromoUseCases } from './promo'
 
 export interface OrderDeps {
@@ -38,9 +34,10 @@ export interface OrderDeps {
   promo?: Pick<ReturnType<typeof makePromoUseCases>, 'apply' | 'redeem' | 'onOrderCancelled' | 'onOrderDelivered'>
   /** Asks the customer for a review once the order is delivered. */
   reviews?: { inviteAfterDelivery(order: Order): Promise<boolean> }
-  /** Drops: their pieces cannot be ordered before they open (early access aside). */
-  drops?: DropRepository
 }
+
+/** Online orders not paid after this delay are cancelled and their stock released. */
+export const UNPAID_ONLINE_ORDER_TTL_MS = 2 * 3_600_000
 
 export interface CreateOrderInput {
   customer: {
@@ -54,7 +51,9 @@ export interface CreateOrderInput {
     notes?: string | null
   }
   items: { product_id: string; size?: string | null; color?: string | null; quantity: number }[]
-  payment_method: string
+  /** Online (100 % now, Paystack) or cash / Mobile Money on delivery. */
+  payment_method: CheckoutPaymentMode
+  delivery_zone: DeliveryZone
   /** Promo or referral code typed at checkout. */
   promo_code?: string | null
 }
@@ -112,31 +111,6 @@ export function makeOrderUseCases(d: OrderDeps) {
     throw new ConflictError('Impossible de générer un numéro de commande, réessayez.')
   }
 
-  /**
-   * A piece of an upcoming drop is not sold before the drop opens, except during its early access
-   * to the people who asked for the drop or subscribed to the newsletter before that access began
-   * (checked on the account's confirmed email).
-   */
-  async function checkDrops(lines: Omit<OrderItem, 'id' | 'order_id'>[], settings: Record<string, unknown>, account?: { email?: string; emailVerified?: boolean }) {
-    const { hours, byProduct } = await upcomingDrops(d.drops, settings)
-    for (const line of lines) {
-      const drop = line.product_id ? byProduct.get(line.product_id) : undefined
-      // A drop taking reservations: the deposit is paid now, the date is the release.
-      if (!drop || drop.preorders_open !== false) continue
-      const access = dropAccess(drop.starts_at, hours)
-      if (access === 'open') continue
-      const opens = dropDate(drop.starts_at)
-      if (access === 'closed') {
-        const early = hours > 0 ? ` (${hours} h plus tôt pour les inscrits)` : ''
-        throw new ValidationError(`« ${line.product_name} » sort avec ${drop.title} : précommandes le ${opens}${early}.`)
-      }
-      const listed = account?.email && account.emailVerified !== false ? await d.drops!.hasEarlyAccess(drop.id, account.email, earlyAccessAt(drop.starts_at, hours)) : false
-      if (!listed) {
-        throw new ValidationError(`« ${line.product_name} » est en accès anticipé, réservé aux inscrits de ${drop.title}. Ouverture à tous le ${opens}.`)
-      }
-    }
-  }
-
   /** The order lines, priced from the database (never from the client). */
   async function buildLines(items: CreateOrderInput['items']): Promise<Omit<OrderItem, 'id' | 'order_id'>[]> {
     const ids = [...new Set(items.map((i) => i.product_id))]
@@ -146,8 +120,6 @@ export function makeOrderUseCases(d: OrderDeps) {
       const product = found.get(item.product_id)
       if (!product || !product.is_active) throw new ValidationError('Un article de votre panier n’est plus disponible')
       if (product.status === 'unavailable') throw new ValidationError(`« ${product.name} » est actuellement indisponible`)
-      if (seriesComplete(product)) throw new ValidationError(`« ${product.name} » est épuisé : toutes les pièces de la série ont trouvé preneur`)
-      if (preordersClosed(product)) throw new ValidationError(`Les précommandes de « ${product.name} » sont closes`)
 
       const requested = (item.size ?? '').trim().toUpperCase()
       let size: string = ONE_SIZE
@@ -168,116 +140,149 @@ export function makeOrderUseCases(d: OrderDeps) {
         quantity: Math.min(MAX_QUANTITY_PER_LINE, Math.max(1, Math.floor(item.quantity))),
       }
     })
-    // A numbered series cannot sell more pieces than it has left (counted on paid orders).
+    // A first check on the stock read now (the database checks again, atomically, when the order is written).
     const wanted = new Map<string, number>()
-    for (const l of lines) if (l.product_id) wanted.set(l.product_id, (wanted.get(l.product_id) ?? 0) + l.quantity)
-    for (const [id, qty] of wanted) {
+    for (const l of lines) {
+      const key = `${l.product_id}|${l.size}`
+      wanted.set(key, (wanted.get(key) ?? 0) + l.quantity)
+    }
+    for (const [key, qty] of wanted) {
+      const [id, size] = key.split('|') as [string, string]
       const product = found.get(id)!
-      const left = seriesLeft(product)
-      if (left != null && qty > left) {
-        throw new ValidationError(`Il ne reste que ${left} pièce${left > 1 ? 's' : ''} de « ${product.name} » dans la série`)
-      }
+      const available = stockForSize(product, size)
+      if (qty > available) throw new OutOfStockError(product.name, size, available)
     }
     return lines
   }
 
   const api = {
-    /** Public checkout. Prices always come from the database, never from the client. */
+    /**
+     * Public checkout. Prices always come from the database, never from the client.
+     * The stock is taken when the order is written (all lines or none); a cash-on-delivery
+     * order waits for the shop's call, an online one for its payment.
+     */
     async create(input: CreateOrderInput, account?: { userId: string; emailVerified?: boolean; email?: string }) {
       if (account && !account.emailVerified) {
         throw new EmailNotVerifiedError('Confirmez votre adresse email pour passer commande. Un lien vous a été envoyé.')
       }
       const settings = await d.settings.getAll().catch(() => ({} as Record<string, unknown>))
-      const depositPct = resolveDepositPercentage(settings.deposit_percentage) // deposit now, balance before delivery
       const maxItems = Number(settings.max_items_per_order) || 10
-      const deliveryDays = Number(settings.delivery_days_max) || 15
+      const deliveryDays = Number(settings.delivery_days_max) || 5
+      if (input.payment_method === 'online' && !flag(settings.online_payment_enabled, true)) {
+        throw new ValidationError('Le paiement en ligne est momentanément indisponible : choisissez le paiement à la livraison.')
+      }
+      if (input.payment_method === 'cash_on_delivery' && !flag(settings.cash_on_delivery_enabled, true)) {
+        throw new ValidationError('Le paiement à la livraison est momentanément indisponible : payez en ligne.')
+      }
 
       const totalQty = input.items.reduce((s, i) => s + i.quantity, 0)
       if (totalQty > maxItems) throw new ValidationError(`Maximum ${maxItems} articles par commande`)
 
       const lines = await buildLines(input.items)
-      await checkDrops(lines, settings, account)
-
-      const basket = computeOrderTotals(lines.map((l) => ({ unitPrice: l.product_price, quantity: l.quantity })), depositPct)
+      const priced = lines.map((l) => ({ unitPrice: l.product_price, quantity: l.quantity }))
+      const subtotal = computeOrderTotals(priced).subtotal
 
       // A promo or referral code: the discount is decided here, from the database.
       let applied: AppliedPromo | null = null
       if (input.promo_code?.trim()) {
         if (!d.promo) throw new ValidationError('Les codes promo ne sont pas disponibles pour le moment.')
         if (!account) throw new ValidationError('Connectez-vous pour utiliser un code.')
-        applied = await d.promo.apply(input.promo_code, basket.total, { userId: account.userId, email: account.email, emailVerified: account.emailVerified })
+        applied = await d.promo.apply(input.promo_code, subtotal, { userId: account.userId, email: account.email, emailVerified: account.emailVerified })
       }
-      const discount = applied?.discount ?? 0
-      // The deposit is taken on the amount due after the discount; the balance is paid before delivery.
-      const totals = { ...basket, total: basket.total - discount, ...splitPayment(basket.total - discount, depositPct) }
+      const totals = computeOrderTotals(priced, {
+        discount: applied?.discount ?? 0,
+        zone: input.delivery_zone,
+        payment: input.payment_method,
+        delivery: resolveDeliverySettings(settings),
+      })
 
       const customer = await findOrCreateCustomer(input.customer, account?.email ?? null)
-      const preorderNumber = await uniqueOrderNumber()
+      const orderNumber = await uniqueOrderNumber()
+      const pickup = input.delivery_zone === 'pickup'
 
       const order = await d.orders.create(
         {
-          preorder_number: preorderNumber,
+          preorder_number: orderNumber,
           customer_id: customer.id,
           user_id: account?.userId ?? null,
           status: 'pending',
           total_price: totals.total,
-          deposit_amount: totals.deposit,
-          deposit_percentage: depositPct,
-          remaining_amount: totals.remaining,
+          // deposit_amount = what is paid online now; remaining_amount = what the rider (or the shop) collects.
+          deposit_amount: totals.dueNow,
+          deposit_percentage: input.payment_method === 'online' ? 100 : 0,
+          remaining_amount: totals.dueOnDelivery,
           payment_method: input.payment_method,
-          // A code that covers the whole basket leaves nothing to pay.
+          // A code that covers everything leaves nothing to pay.
           payment_status: totals.total === 0 ? 'paid' : 'pending',
-          subtotal_price: basket.total,
-          discount_amount: discount,
+          subtotal_price: totals.subtotal,
+          discount_amount: totals.discount,
+          delivery_zone: input.delivery_zone,
+          delivery_fee: totals.deliveryFee,
           promo_code: applied?.promo.code ?? null,
           referred_by_user_id: applied?.referrerId ?? null,
-          delivery_address: input.customer.address,
+          delivery_address: pickup ? 'Retrait en boutique' : input.customer.address,
           delivery_city: input.customer.city,
           customer_notes: input.customer.notes || '',
           estimated_delivery: new Date(Date.now() + deliveryDays * 86_400_000).toISOString().slice(0, 10),
         },
         lines,
       )
+      // The units are taken atomically: if somebody bought the last one meanwhile, the order is undone.
+      try {
+        await d.orders.reserveStock(order.id)
+      } catch (error) {
+        await d.orders.delete(order.id)
+        throw error
+      }
       if (applied && d.promo && account) {
         // The use is counted atomically; if another order just took the last one, this order is undone.
         if (!(await d.promo.redeem(applied, order.id, account.userId))) {
+          await d.orders.releaseStock(order.id, 'cancel')
           await d.orders.delete(order.id)
           throw new ConflictError('Ce code vient d’atteindre sa limite d’utilisation. Retirez-le pour commander.')
         }
       }
-      await d.orders.addTracking({ order_id: order.id, status: 'pending', notes: 'Précommande créée' })
+      await d.orders.addTracking({
+        order_id: order.id,
+        status: 'pending',
+        notes: input.payment_method === 'online' ? 'Commande créée — en attente du paiement en ligne' : 'Commande créée — paiement à la livraison',
+      })
 
       const customerName = `${input.customer.firstName} ${input.customer.lastName}`
       let emailSent = false
       if (customer.email && flag(settings.customer_order_confirmation, true)) {
         emailSent = await d.mailer.send({
           to: customer.email,
-          subject: `Précommande ${preorderNumber} confirmée | ${brand().name}`,
+          subject: `Commande ${orderNumber} reçue | ${brand().name}`,
           html: orderConfirmationEmail({
-            preorderNumber,
+            orderNumber,
             customerName,
             items: lines,
-            total: totals.total,
-            deposit: totals.deposit,
-            remaining: totals.remaining,
-            discount,
+            subtotal: totals.subtotal,
+            discount: totals.discount,
             promoCode: applied?.promo.code ?? null,
+            deliveryFee: totals.deliveryFee,
+            total: totals.total,
+            paymentMethod: input.payment_method,
+            zone: input.delivery_zone,
             city: input.customer.city,
             address: input.customer.address,
-            trackingUrl: trackingUrl(preorderNumber),
+            trackingUrl: trackingUrl(orderNumber),
           }),
         })
       }
       if (d.config.adminEmail && flag(settings.admin_order_notification, true)) {
         void d.mailer.send({
           to: d.config.adminEmail,
-          subject: `🛍️ Nouvelle précommande ${preorderNumber}`,
+          subject: `🛍️ Nouvelle commande ${orderNumber}`,
           html: adminNewOrderEmail({
-            preorderNumber,
+            orderNumber,
             customerName,
             phone: input.customer.phone,
             total: totals.total,
             itemsCount: totals.itemCount,
+            paymentMethod: input.payment_method,
+            zone: input.delivery_zone,
             adminUrl: `${d.config.appUrl.replace(/\/$/, '')}/admin/orders`,
           }),
         })
@@ -287,13 +292,14 @@ export function makeOrderUseCases(d: OrderDeps) {
         success: true,
         order_id: order.id,
         customer_id: customer.id,
-        preorder_number: preorderNumber,
+        preorder_number: orderNumber,
+        payment_method: input.payment_method,
+        subtotal_price: totals.subtotal,
+        discount_amount: totals.discount,
+        delivery_fee: totals.deliveryFee,
         total_price: totals.total,
-        deposit_amount: totals.deposit,
-        remaining_amount: totals.remaining,
-        deposit_percentage: depositPct,
-        subtotal_price: basket.total,
-        discount_amount: discount,
+        due_now: totals.dueNow,
+        due_on_delivery: totals.dueOnDelivery,
         promo_code: applied?.promo.code ?? null,
         email_sent: emailSent,
       }
@@ -303,9 +309,9 @@ export function makeOrderUseCases(d: OrderDeps) {
     async quotePromo(input: { promo_code: string; items: CreateOrderInput['items'] }, account: { userId: string; emailVerified?: boolean; email?: string }) {
       if (!d.promo) throw new ValidationError('Les codes promo ne sont pas disponibles pour le moment.')
       const lines = await buildLines(input.items)
-      const basket = computeOrderTotals(lines.map((l) => ({ unitPrice: l.product_price, quantity: l.quantity })))
-      const applied = await d.promo.apply(input.promo_code, basket.total, account)
-      return { code: applied.promo.code, kind: applied.promo.kind, value: applied.promo.value, referral: !!applied.referrerId, discount: applied.discount, subtotal: basket.total, total: basket.total - applied.discount }
+      const subtotal = computeOrderTotals(lines.map((l) => ({ unitPrice: l.product_price, quantity: l.quantity }))).subtotal
+      const applied = await d.promo.apply(input.promo_code, subtotal, account)
+      return { code: applied.promo.code, kind: applied.promo.kind, value: applied.promo.value, referral: !!applied.referrerId, discount: applied.discount, subtotal, total: subtotal - applied.discount }
     },
 
     list(query: Parameters<OrderRepository['list']>[0]) {
@@ -333,10 +339,19 @@ export function makeOrderUseCases(d: OrderDeps) {
           throw new ConflictError(`Une commande « ${ORDER_STATUS_LABELS[order.status]} » ne peut plus être modifiée`)
         }
         patch.status = input.status
-        // Delivering does not make an order paid: the balance is recorded when it is received.
+        // Delivering does not make an order paid: cash collected by the rider is recorded as a payment.
         if (input.status === 'delivered') patch.delivered_at = new Date().toISOString()
+        if (input.status === 'returned') patch.returned_at = new Date().toISOString()
       }
       const updated = await d.orders.update(id, patch)
+
+      // Cancelled or returned: the units go back on the shelves (once, whatever happens next).
+      if (statusChanged && input.status && STOCK_RELEASING_STATUSES.includes(input.status)) {
+        const released = await d.orders.releaseStock(id, input.status === 'returned' ? 'return' : 'cancel')
+        if (released) {
+          await d.orders.addTracking({ order_id: id, status: input.status, notes: 'Articles remis en stock' })
+        }
+      }
 
       if (statusChanged && input.status) {
         await d.orders.addTracking({
@@ -346,9 +361,9 @@ export function makeOrderUseCases(d: OrderDeps) {
           location: input.location ?? null,
         })
         // The code goes back when the order is cancelled; a referred order rewards its referrer once delivered.
-        if (d.promo && (input.status === 'cancelled' || input.status === 'delivered')) {
+        if (d.promo && (input.status === 'cancelled' || input.status === 'returned' || input.status === 'delivered')) {
           try {
-            if (input.status === 'cancelled') await d.promo.onOrderCancelled(id)
+            if (input.status === 'cancelled' || input.status === 'returned') await d.promo.onOrderCancelled(id)
             else await d.promo.onOrderDelivered({ ...order, ...updated, customers: order.customers })
           } catch (err) {
             console.error(JSON.stringify({ level: 'error', msg: 'promo.order_status_hook', order: id, error: String(err) }))
@@ -365,7 +380,7 @@ export function makeOrderUseCases(d: OrderDeps) {
           const step = TRACKING_STEPS.find((s) => s.status === input.status)
           await d.mailer.send({
             to: email,
-            subject: `Votre précommande ${order.preorder_number} : ${ORDER_STATUS_LABELS[input.status]}`,
+            subject: `Votre commande ${order.preorder_number} : ${ORDER_STATUS_LABELS[input.status]}`,
             html: statusUpdateEmail({
               preorderNumber: order.preorder_number,
               customerName: `${order.customers?.first_name ?? ''} ${order.customers?.last_name ?? ''}`.trim(),
@@ -382,17 +397,38 @@ export function makeOrderUseCases(d: OrderDeps) {
     async remove(id: string) {
       const order = await d.orders.findById(id)
       if (!order) throw new NotFoundError('Commande introuvable')
-      if (order.status === 'delivered') throw new ConflictError('Impossible de supprimer une commande livrée')
+      if (order.status === 'delivered' || order.status === 'returned') throw new ConflictError('Impossible de supprimer une commande livrée')
+      if ((order.amount_paid ?? 0) > 0) throw new ConflictError('Cette commande a des paiements : annulez-la plutôt que de la supprimer')
+      await d.orders.releaseStock(id, 'cancel')
       await d.promo?.onOrderCancelled(id)
       await d.orders.delete(id)
+    },
+
+    /**
+     * Online orders never paid after a while are cancelled, so their units are sold again.
+     * Called by the scheduler; returns how many were cancelled.
+     */
+    async expireUnpaidOnline(now = new Date()) {
+      const before = new Date(now.getTime() - UNPAID_ONLINE_ORDER_TTL_MS).toISOString()
+      const stale = await d.orders.listUnpaidOnline(before, 50)
+      let cancelled = 0
+      for (const order of stale) {
+        try {
+          await api.update(order.id, { status: 'cancelled', admin_notes: 'Annulée automatiquement : paiement en ligne non reçu', notify_customer: true })
+          cancelled++
+        } catch (error) {
+          console.error(JSON.stringify({ level: 'error', msg: 'orders.expire_failed', order: order.id, error: String(error) }))
+        }
+      }
+      return { cancelled }
     },
 
     /** Public tracking view — personal data is masked. */
     async track(preorderNumber: string) {
       const number = preorderNumber.trim().toUpperCase()
-      if (!isValidOrderNumber(number)) throw new ValidationError('Format de numéro invalide (ex : SC-2026-7KQ4M2XA)')
+      if (!isValidOrderNumber(number)) throw new ValidationError('Format de numéro invalide (ex : BS-2026-7KQ4M2XA)')
       const order = await d.orders.findByNumber(number)
-      if (!order) throw new NotFoundError('Aucune précommande avec ce numéro')
+      if (!order) throw new NotFoundError('Aucune commande avec ce numéro')
 
       const productIds = [...new Set((order.order_items ?? []).map((i) => i.product_id).filter((x): x is string => !!x))]
       const products = new Map((await d.products.findManyByIds(productIds)).map((p) => [p.id, p]))
@@ -404,6 +440,10 @@ export function makeOrderUseCases(d: OrderDeps) {
         total_price: order.total_price,
         deposit_amount: order.deposit_amount,
         remaining_amount: order.remaining_amount,
+        amount_paid: order.amount_paid ?? 0,
+        payment_method: order.payment_method,
+        delivery_fee: order.delivery_fee ?? 0,
+        delivery_zone: order.delivery_zone ?? null,
         delivery_city: order.delivery_city,
         estimated_delivery: order.estimated_delivery,
         created_at: order.created_at,
@@ -420,8 +460,6 @@ export function makeOrderUseCases(d: OrderDeps) {
             color: i.color ?? null,
             quantity: i.quantity,
             product_price: i.product_price,
-            piece_numbers: i.piece_numbers ?? [],
-            series_size: p?.series_size ?? null,
           }
         }),
         timeline: (order.order_tracking ?? []).map((t) => ({
@@ -437,7 +475,7 @@ export function makeOrderUseCases(d: OrderDeps) {
       const number = preorderNumber.trim().toUpperCase()
       if (!isValidOrderNumber(number)) throw new ValidationError('Format de numéro invalide')
       const order = await d.orders.findByNumber(number)
-      if (!order) throw new NotFoundError('Aucune précommande avec ce numéro')
+      if (!order) throw new NotFoundError('Aucune commande avec ce numéro')
       return d.orders.history(order.id)
     },
 

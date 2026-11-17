@@ -30,7 +30,7 @@ export default function SearchOverlay({ open, onClose }: { open: boolean; onClos
     const ctrl = new AbortController()
     setLoading(true)
     catalogService
-      .getProducts({ search: debounced, limit: 6, exclusive: 'all' }, ctrl.signal)
+      .getProducts({ search: debounced, limit: 6 }, ctrl.signal)
       .then((page) => setResults(page.items))
       .catch(() => undefined)
       .finally(() => setLoading(false))

@@ -64,6 +64,6 @@ describe('secret sealing and recovery codes', () => {
 
   it('builds an otpauth:// URL for authenticator apps', () => {
     const url = new TotpTwoFactorCrypto().otpauthUrl('admin@shop.ci', 'JBSWY3DPEHPK3PXP')
-    expect(url).toMatch(/^otpauth:\/\/totp\/SCION%20CARON%3Aadmin%40shop\.ci\?secret=JBSWY3DPEHPK3PXP&issuer=SCION\+CARON/)
+    expect(url).toMatch(/^otpauth:\/\/totp\/Basic%20Store%3Aadmin%40shop\.ci\?secret=JBSWY3DPEHPK3PXP&issuer=Basic\+Store/)
   })
 })

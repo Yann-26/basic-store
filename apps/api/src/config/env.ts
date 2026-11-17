@@ -52,7 +52,7 @@ export const env = {
     url: read('UPSTASH_REDIS_REST_URL') ?? read('KV_REST_API_URL'),
     token: read('UPSTASH_REDIS_REST_TOKEN') ?? read('KV_REST_API_TOKEN'),
   },
-  emailFrom: read('EMAIL_FROM') ?? 'SCION CARON <hello@therisingstar.ci>',
+  emailFrom: read('EMAIL_FROM') ?? 'Basic Store <contact@basicstore.ci>',
   adminNotificationEmail: read('ADMIN_NOTIFICATION_EMAIL'),
 
   /** Social sign-in apps; a provider without keys is simply not offered. */

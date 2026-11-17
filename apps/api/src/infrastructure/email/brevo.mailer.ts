@@ -5,7 +5,7 @@ import { brand } from '@/application/brand'
 const BREVO_URL = 'https://api.brevo.com/v3/smtp/email'
 const TIMEOUT_MS = 8000
 
-/** "SCION CARON <shop@gmail.com>" → { name, email }. */
+/** "Basic Store <shop@gmail.com>" → { name, email }. */
 export function parseSender(from: string): { name?: string; email: string } {
   const match = from.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/)
   if (match) return { name: match[1]!.trim() || undefined, email: match[2]!.trim() }

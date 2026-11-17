@@ -195,7 +195,7 @@ export default function AdminDashboard() {
                 <Link to="/admin/orders?status=pending" className="flex items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm hover:border-amber-400">
                   <HiClipboardDocumentList className="h-5 w-5 text-amber-400" />
                   <span className="flex-1">
-                    <strong>{data.totals.pendingOrders}</strong> précommande{data.totals.pendingOrders > 1 ? 's' : ''} en attente d'acompte ou de confirmation
+                    <strong>{data.totals.pendingOrders}</strong> nouvelle{data.totals.pendingOrders > 1 ? 's' : ''} commande{data.totals.pendingOrders > 1 ? 's' : ''} à confirmer
                   </span>
                   <HiArrowRight className="h-4 w-4 text-gray-500" />
                 </Link>
@@ -216,7 +216,7 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <Kpi label="Encaissé (argent reçu)" kpi={data.kpis.revenue} format={formatCompactCurrency} icon={HiWallet} highlight />
             <Kpi label="Valeur commandée" kpi={data.kpis.orderedValue} format={formatCompactCurrency} icon={HiBanknotes} />
-            <Kpi label="Précommandes" kpi={data.kpis.orders} format={(n) => String(n)} icon={HiClipboardDocumentList} />
+            <Kpi label="Commandes" kpi={data.kpis.orders} format={(n) => String(n)} icon={HiClipboardDocumentList} />
             <Kpi label="Panier moyen" kpi={data.kpis.averageOrderValue} format={formatCompactCurrency} icon={HiShoppingBag} />
             <Kpi label="Nouveaux clients" kpi={data.kpis.customers} format={(n) => String(n)} icon={HiUserGroup} />
           </div>

@@ -184,7 +184,7 @@ export default function StorefrontSettings() {
           {imageField('hero_ad_mobile', 'Visuel publicitaire (mobile, optionnel)')}
         </div>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Input label="Lien au clic (optionnel)" value={values.hero_ad_link} onChange={set('hero_ad_link')} placeholder="/exclusivites ou https://…" hint="Une page du site (/collection…) ou une adresse https." />
+          <Input label="Lien au clic (optionnel)" value={values.hero_ad_link} onChange={set('hero_ad_link')} placeholder="/collection?category=shoes ou https://…" hint="Une page du site (/collection…) ou une adresse https." />
           <Input label="Texte alternatif" value={values.hero_ad_alt} onChange={set('hero_ad_alt')} placeholder="Ex : -20 % sur les Air Jordan" hint="Lu par les lecteurs d’écran et Google." />
         </div>
         <div className="space-y-1.5">

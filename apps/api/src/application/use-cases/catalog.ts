@@ -1,16 +1,12 @@
-import { slugify, type Brand, type Product, type Collection, type Exclusive, type ProductListQuery } from '@trs/shared'
-import type { BrandRepository, CollectionRepository, DropRepository, ExclusiveRepository, ProductRepository, SettingsRepository } from '../ports'
-import { productDrop, upcomingDrops } from '../drop-gate'
+import { slugify, type Brand, type Collection, type ProductListQuery } from '@trs/shared'
+import type { BrandRepository, CollectionRepository, ProductRepository, SettingsRepository } from '../ports'
 import { ConflictError, NotFoundError, ValidationError } from '@/domain/errors'
 
 export interface CatalogDeps {
   products: ProductRepository
   brands: BrandRepository
   collections: CollectionRepository
-  exclusives: ExclusiveRepository
   settings: SettingsRepository
-  /** Upcoming drops: shown with their pieces ("sortie le…", early access). */
-  drops?: DropRepository
 }
 
 /** The 3D ring of the home page: products picked in the back-office, in their order. */
@@ -35,39 +31,18 @@ export function showcaseIds(value: unknown): string[] {
 
 type BrandInput = Partial<Omit<Brand, 'id' | 'slug' | 'created_at'>> & { name?: string }
 type CollectionInput = Partial<Omit<Collection, 'id' | 'slug' | 'created_at' | 'brand'>> & { name?: string }
-type ExclusiveInput = Partial<Omit<Exclusive, 'id' | 'slug' | 'created_at' | 'brand'>> & { name?: string }
 
-export function makeCatalogUseCases({ products, brands, collections, exclusives, settings, drops }: CatalogDeps) {
-  /** Adds its upcoming drop to each piece that belongs to one. */
-  async function withDrops<T extends Product>(list: T[]): Promise<T[]> {
-    if (!drops || list.length === 0) return list
-    const { hours, byProduct } = await upcomingDrops(drops, await settings.getAll().catch(() => ({} as Record<string, unknown>)))
-    if (byProduct.size === 0) return list
-    return list.map((p) => {
-      const drop = byProduct.get(p.id)
-      return drop ? { ...p, drop: productDrop(drop, hours) } : p
-    })
-  }
-
+export function makeCatalogUseCases({ products, brands, collections, settings }: CatalogDeps) {
   return {
     // ------------------------------------------------------------- public
-    async listProducts(query: ProductListQuery) {
-      const page = await products.list(query)
-      return { ...page, items: await withDrops(page.items) }
+    listProducts(query: ProductListQuery) {
+      return products.list(query)
     },
 
     async getProduct(slug: string) {
       const product = await products.findByIdOrSlug(slug)
       if (!product) throw new NotFoundError('Produit introuvable')
-      // A series made from its preorders shows how many pieces are already paid.
-      const [withDrop] = await withDrops([product])
-      // Real orders only (deposit paid at least): "3 précommandes ces dernières 24 h".
-      const since = new Date(Date.now() - 24 * 3_600_000).toISOString()
-      const [recent, count] = await Promise.all([
-        products.recentPreorders ? products.recentPreorders(product.id, since).catch(() => 0) : Promise.resolve(0),
-        product.preorder_goal ? products.preorderPieces(product.id) : Promise.resolve(undefined),
-      ])
-      return { ...withDrop!, recent_preorders: recent, ...(count === undefined ? {} : { preorder_count: count }) }
+      return product
     },
 
     /** Picked products in the admin's order; until some are picked, the first ones added. */
@@ -84,11 +59,7 @@ export function makeCatalogUseCases({ products, brands, collections, exclusives,
     async relatedProducts(slug: string, limit = 8) {
       const product = await products.findByIdOrSlug(slug)
       if (!product) throw new NotFoundError('Produit introuvable')
-      // An exclusive piece suggests pieces of the same exclusivité; a regular one, regular pieces.
-      const exclusive = product.is_exclusive ? (product.exclusive?.slug ?? 'only') : undefined
-      const { items } = await products.list(
-        exclusive ? { exclusive, limit: limit + 1 } : { category: product.category, gender: product.gender ?? undefined, limit: limit + 1 },
-      )
+      const { items } = await products.list({ category: product.category, gender: product.gender ?? undefined, limit: limit + 1 })
       return items.filter((p) => p.id !== product.id).slice(0, limit)
     },
 
@@ -101,16 +72,6 @@ export function makeCatalogUseCases({ products, brands, collections, exclusives,
       const brand = await brands.findBySlug(opts.brandSlug)
       if (!brand) return []
       return collections.list({ activeOnly: opts.activeOnly, brandId: brand.id })
-    },
-
-    listExclusives(opts: { activeOnly: boolean }) {
-      return exclusives.list(opts)
-    },
-
-    async getExclusive(slug: string) {
-      const exclusive = await exclusives.findBySlug(slug)
-      if (!exclusive || !exclusive.is_active) throw new NotFoundError('Exclusivité introuvable')
-      return exclusive
     },
 
     // -------------------------------------------------------------- admin
@@ -142,9 +103,8 @@ export function makeCatalogUseCases({ products, brands, collections, exclusives,
 
     async deleteBrand(id: string) {
       if (!(await brands.findById(id))) throw new NotFoundError('Marque introuvable')
-      const [cols, excl, prods] = await Promise.all([collections.countByBrand(id), exclusives.countByBrand(id), products.countByBrand(id)])
+      const [cols, prods] = await Promise.all([collections.countByBrand(id), products.countByBrand(id)])
       if (cols > 0) throw new ConflictError(`Impossible : ${cols} collection(s) rattachée(s) à cette marque`)
-      if (excl > 0) throw new ConflictError(`Impossible : ${excl} exclusivité(s) rattachée(s) à cette marque`)
       if (prods > 0) throw new ConflictError(`Impossible : ${prods} produit(s) rattaché(s) à cette marque`)
       await brands.delete(id)
     },
@@ -183,43 +143,6 @@ export function makeCatalogUseCases({ products, brands, collections, exclusives,
       const count = await products.countByCollection(id)
       if (count > 0) throw new ConflictError(`Impossible : ${count} produit(s) dans cette collection`)
       await collections.delete(id)
-    },
-
-    async createExclusive(input: ExclusiveInput & { name: string }) {
-      if (input.brand_id && !(await brands.findById(input.brand_id))) throw new NotFoundError('Marque introuvable')
-      const slug = slugify(input.name)
-      if (!slug) throw new ValidationError('Nom invalide')
-      if (await exclusives.findBySlug(slug)) throw new ConflictError('Une exclusivité porte déjà ce nom')
-      return exclusives.create({
-        name: input.name,
-        slug,
-        brand_id: input.brand_id || null,
-        description: input.description ?? '',
-        image_url: input.image_url ?? '',
-        banner_url: input.banner_url ?? '',
-        is_active: input.is_active ?? true,
-        sort_order: input.sort_order ?? 0,
-      })
-    },
-
-    async updateExclusive(id: string, input: ExclusiveInput) {
-      if (!(await exclusives.findById(id))) throw new NotFoundError('Exclusivité introuvable')
-      if (input.brand_id && !(await brands.findById(input.brand_id))) throw new NotFoundError('Marque introuvable')
-      const patch: Partial<Exclusive> = { ...input }
-      if ('brand_id' in input) patch.brand_id = input.brand_id || null
-      if (input.name) {
-        patch.slug = slugify(input.name)
-        const dup = await exclusives.findBySlug(patch.slug)
-        if (dup && dup.id !== id) throw new ConflictError('Une exclusivité porte déjà ce nom')
-      }
-      return exclusives.update(id, patch)
-    },
-
-    async deleteExclusive(id: string) {
-      if (!(await exclusives.findById(id))) throw new NotFoundError('Exclusivité introuvable')
-      const count = await products.countByExclusive(id)
-      if (count > 0) throw new ConflictError(`Impossible : ${count} produit(s) dans cette exclusivité`)
-      await exclusives.delete(id)
     },
   }
 }

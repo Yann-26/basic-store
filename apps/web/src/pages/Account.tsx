@@ -4,7 +4,7 @@ import { Helmet } from 'react-helmet-async'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import { HiClipboardDocumentList, HiUser, HiShieldCheck, HiCheckBadge, HiExclamationTriangle, HiArrowRight, HiLockClosed, HiKey, HiPhone, HiCreditCard, HiTicket, HiGift } from 'react-icons/hi2'
-import { ORDER_STATUS_LABELS, SOCIAL_PROVIDER_LABELS, checkPasswordStrength, formatCurrency, isValidPhone, isWaveAwaitingCheck, paymentProgress, type LinkedAccounts, type Order, type SocialProvider, formatPieceNumbers } from '@trs/shared'
+import { ORDER_STATUS_LABELS, SOCIAL_PROVIDER_LABELS, checkPasswordStrength, formatCurrency, isValidPhone, isWaveAwaitingCheck, paymentProgress, type LinkedAccounts, type Order, type SocialProvider } from '@trs/shared'
 import { useAuth } from '../context/AuthContext'
 import { useSettings } from '../context/SettingsContext'
 import { accountService } from '../services/accountService'
@@ -47,7 +47,7 @@ function Orders() {
     return (
       <div className="rounded-3xl border border-dashed border-white/10 py-16 text-center">
         <p className="font-display text-2xl">Pas encore de commande</p>
-        <p className="mt-2 text-sm text-gray-500">Vos précommandes apparaîtront ici, avec leur suivi.</p>
+        <p className="mt-2 text-sm text-gray-500">Vos commandes apparaîtront ici, avec leur suivi.</p>
         <Link to="/collection" className="mt-6 inline-block">
           <Button>Découvrir la boutique</Button>
         </Link>
@@ -73,7 +73,6 @@ function Orders() {
               <li key={i.id} className="flex justify-between gap-4">
                 <span className="truncate">
                   {i.product_name} <span className="text-gray-500">{i.size && i.size !== 'TU' ? `· ${i.size}` : ''} ×{i.quantity}</span>
-                  {(i.piece_numbers ?? []).length > 0 && <span className="ml-2 text-gold">{formatPieceNumbers(i.piece_numbers)}</span>}
                 </span>
                 <span className="whitespace-nowrap">{formatCurrency(i.product_price * i.quantity)}</span>
               </li>
@@ -94,7 +93,7 @@ function Orders() {
               {o.status !== 'cancelled' && paymentProgress(o).outstanding > 0 && (
                 <Link to={`/payer/${encodeURIComponent(o.preorder_number)}`}>
                   <Button size="sm" icon={HiCreditCard}>
-                    {paymentProgress(o).paid > 0 ? `Payer le solde · ${formatCurrency(paymentProgress(o).outstanding)}` : "Payer l'acompte"}
+                    {`Payer en ligne · ${formatCurrency(paymentProgress(o).outstanding)}`}
                   </Button>
                 </Link>
               )}
@@ -204,7 +203,7 @@ function EmailPreferences() {
     <div className="mt-8 flex max-w-xl items-start justify-between gap-4 rounded-2xl border border-white/5 bg-dark-800 p-4">
       <div>
         <p className="font-medium">Nouveautés & recommandations</p>
-        <p className="mt-1 text-sm text-gray-400">Arrivages, exclusivités et une sélection basée sur vos achats. Les emails de commande restent envoyés dans tous les cas.</p>
+        <p className="mt-1 text-sm text-gray-400">Arrivages, promos et une sélection basée sur vos achats. Les emails de commande restent envoyés dans tous les cas.</p>
       </div>
       <button
         type="button"

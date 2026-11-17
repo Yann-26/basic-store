@@ -12,11 +12,11 @@ const HELP = [
 ]
 
 const HOUSE = [
-  { name: 'La Maison', path: '/about' },
+  { name: 'La boutique', path: '/about' },
   { name: 'Nouveautés', path: '/collection?sort=newest' },
-  { name: 'Exclusivités', path: '/exclusivites' },
-  { name: 'Calendrier des drops', path: '/drops' },
-  { name: 'Les looks', path: '/looks' },
+  { name: 'Femme', path: '/collection?gender=women' },
+  { name: 'Homme', path: '/collection?gender=men' },
+  { name: 'Les looks clients', path: '/looks' },
 ]
 
 const heading = 'mb-5 font-sans text-xs font-semibold'
@@ -56,7 +56,7 @@ export default function Footer() {
         </div>
 
         <div>
-          <h2 className={heading}>La Maison</h2>
+          <h2 className={heading}>Basic Store</h2>
           <ul className="space-y-3">
             {HOUSE.map((l) => (
               <li key={l.path}>
@@ -84,20 +84,28 @@ export default function Footer() {
         <div id="newsletter" className="scroll-mt-28">
           <h2 className={heading}>Recevoir les nouveautés</h2>
           <p className="mb-5 text-xs leading-relaxed text-gray-400">
-            Les nouvelles séries et les lancements, en avant-première, par email. Désinscription en un clic.
+            Les nouveaux arrivages et les promos, en avant-première, par email. Désinscription en un clic.
           </p>
           <NewsletterForm tone="line" />
         </div>
       </div>
 
-      <div className="container-custom pb-4">
-        <Logo size="md" />
+      <div className="container-custom flex flex-col gap-6 pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <Logo size="lg" />
+        <address className="text-xs not-italic leading-relaxed text-gray-400 sm:text-right">
+          Boutique : {settings.store_address || 'Angré Nouveau CHU, Djorogobité 1'}, {settings.store_city || 'Abidjan'}
+          <br />
+          <a href="https://maps.app.goo.gl/WxVjzGNrFPwsw9nd9" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">
+            Voir sur la carte
+          </a>{' '}
+          · {settings.store_phone}
+        </address>
       </div>
       <div className="container-custom flex flex-col gap-3 pb-10 text-[11px] text-gray-500 sm:flex-row sm:justify-between">
         <p>
           © {year} {settings.store_name} · {settings.store_city}
         </p>
-        <p>Paiement sécurisé · Livraison en Côte d'Ivoire</p>
+        <p>Paiement à la livraison ou en ligne · Livraison partout en Côte d'Ivoire</p>
       </div>
 
     </footer>

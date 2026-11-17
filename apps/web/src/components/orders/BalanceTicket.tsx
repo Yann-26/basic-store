@@ -6,7 +6,7 @@ import {
   PAYMENT_METHOD_LABELS,
   formatCurrency,
   paymentProgress,
-  type Order, formatPieceNumbers } from '@trs/shared'
+  type Order } from '@trs/shared'
 import { payBalanceUrl } from '../../utils/payLinks'
 
 
@@ -45,7 +45,7 @@ export default function BalanceTicket({ order, contactPhone }: { order: Order; c
       </header>
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-b border-dashed border-[#d4d4d4] py-4 text-sm">
-        <dt className="text-[#737373]">Précommande</dt>
+        <dt className="text-[#737373]">Commande</dt>
         <dd className="text-right font-mono font-semibold">{order.preorder_number}</dd>
         <dt className="text-[#737373]">Date</dt>
         <dd className="text-right">{fmtDate(order.created_at)}</dd>
@@ -63,7 +63,7 @@ export default function BalanceTicket({ order, contactPhone }: { order: Order; c
             <span className="min-w-0">
               {i.product_name}
               <span className="text-[#737373]">
-                {[i.size && i.size !== 'TU' ? ` · ${i.size}` : '', i.color ? ` · ${i.color}` : '', i.quantity > 1 ? ` · ×${i.quantity}` : '', (i.piece_numbers ?? []).length ? ` · ${formatPieceNumbers(i.piece_numbers)}` : ''].join('')}
+                {[i.size && i.size !== 'TU' ? ` · ${i.size}` : '', i.color ? ` · ${i.color}` : '', i.quantity > 1 ? ` · ×${i.quantity}` : ''].join('')}
               </span>
             </span>
             <span className="whitespace-nowrap tabular-nums">{formatCurrency(i.product_price * i.quantity)}</span>

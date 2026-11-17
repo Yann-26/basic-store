@@ -6,7 +6,7 @@ import { UnauthorizedError } from '@/domain/errors'
 export const maxDuration = 60
 
 /**
- * Newsletter worker (and drop reminders), called every 5 minutes by Supabase pg_cron (secret kept in
+ * Newsletter worker (and expiry of unpaid online orders), called every 5 minutes by Supabase pg_cron (secret kept in
  * Vault) or by a Vercel cron (CRON_SECRET), with `Authorization: Bearer <secret>`.
  */
 async function run({ req }: { req: Request }) {
@@ -14,12 +14,12 @@ async function run({ req }: { req: Request }) {
   const token = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
   if (!(await useCases.newsletter.isSchedulerCall(token, env.cronSecret))) throw new UnauthorizedError()
   const newsletter = await useCases.newsletter.processDue()
-  // The same tick warns the people waiting for a drop that just opened.
-  const drops = await useCases.drops.processDueReminders().catch((err) => {
-    console.error(JSON.stringify({ level: 'error', msg: 'drops.reminders', error: String(err) }))
+  // The same tick cancels online orders left unpaid, so their stock goes back on the shelves.
+  const expired = await useCases.orders.expireUnpaidOnline().catch((err: unknown) => {
+    console.error(JSON.stringify({ level: 'error', msg: 'orders.expire_unpaid', error: String(err) }))
     return null
   })
-  return { ...newsletter, drops }
+  return { ...newsletter, expired }
 }
 
 export const GET = route(run, { rateLimit: 30 })

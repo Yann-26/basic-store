@@ -1,4 +1,3 @@
-import FramesField from './FramesField'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { Link } from 'react-router-dom'
@@ -6,7 +5,6 @@ import toast from 'react-hot-toast'
 import {
   HiPlus,
   HiPencil,
-  HiCube,
   HiTrash,
   HiMagnifyingGlass,
   HiPhoto,
@@ -25,12 +23,12 @@ import {
   formatCurrency,
   getCategory,
   type Collection,
-  type Exclusive,
   type Gender,
   type Product,
   type ProductCategoryId,
   type ProductStatus,
   sameColor,
+  totalStock,
 } from '@trs/shared'
 import { productsService, type ProductPayload } from '../../services/productsService'
 import { catalogService } from '../../services/catalogService'
@@ -53,15 +51,6 @@ interface MediaDraft {
   savedColor: string | null
 }
 
-/** An ISO date as the value of a datetime-local field, in the browser's time zone. */
-function toLocalInput(iso?: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 interface FormState {
   name: string
   description: string
@@ -71,8 +60,6 @@ interface FormState {
   subcategory: string
   gender: Gender
   collection_id: string
-  is_exclusive: boolean
-  exclusive_id: string
   status: ProductStatus
   stock: string
   sizes: string[]
@@ -84,14 +71,10 @@ interface FormState {
   is_active: boolean
   /** Email the subscribers when the piece is published. */
   notify_subscribers: boolean
-  /** Turntable photos: the storefront lets the visitor turn the piece. */
-  spin_frames: string[]
   release_date: string
-  /** Pieces to sell before the series is made; empty: no gauge. */
-  series_size: string
-  preorder_goal: string
-  /** datetime-local value (the admin's time zone). */
-  preorder_deadline: string
+  /** First quantities per size (creation only; then through the Stock page). */
+  size_stock: Record<string, string>
+  low_stock_threshold: string
   media: MediaDraft[]
 }
 
@@ -104,8 +87,6 @@ const EMPTY: FormState = {
   subcategory: '',
   gender: 'unisex',
   collection_id: '',
-  is_exclusive: false,
-  exclusive_id: '',
   status: 'available',
   stock: '0',
   sizes: [],
@@ -116,11 +97,9 @@ const EMPTY: FormState = {
   is_featured: false,
   is_active: true,
   notify_subscribers: true,
-  spin_frames: [],
   release_date: '',
-  series_size: '',
-  preorder_goal: '',
-  preorder_deadline: '',
+  size_stock: {},
+  low_stock_threshold: '3',
   media: [],
 }
 
@@ -145,8 +124,6 @@ function toForm(p: Product): FormState {
     subcategory: p.subcategory ?? '',
     gender: p.gender ?? 'unisex',
     collection_id: p.collection_id ?? '',
-    is_exclusive: !!p.is_exclusive,
-    exclusive_id: p.exclusive_id ?? '',
     status: p.status,
     stock: String(p.stock ?? 0),
     sizes: p.sizes,
@@ -157,11 +134,9 @@ function toForm(p: Product): FormState {
     is_featured: !!p.is_featured,
     is_active: p.is_active,
     notify_subscribers: true,
-    spin_frames: p.spin_frames ?? [],
     release_date: p.release_date ?? '',
-    series_size: p.series_size ? String(p.series_size) : '',
-    preorder_goal: p.preorder_goal ? String(p.preorder_goal) : '',
-    preorder_deadline: toLocalInput(p.preorder_deadline),
+    size_stock: Object.fromEntries(Object.entries(p.size_stock ?? {}).map(([k, v]) => [k, String(v)])),
+    low_stock_threshold: String(p.low_stock_threshold ?? 3),
     media: (p.product_media ?? []).map((m) => ({ id: m.id, file: null, preview: m.file_path, type: m.media_type, isMain: m.is_main, color: m.color ?? null, savedColor: m.color ?? null })),
   }
 }
@@ -212,7 +187,6 @@ function ChipsInput({ label, values, onChange, placeholder }: { label: string; v
 export default function AdminProducts() {
   const [products, setProducts] = useState<Product[]>([])
   const [collections, setCollections] = useState<Collection[]>([])
-  const [exclusives, setExclusives] = useState<Exclusive[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<'' | ProductCategoryId>('')
@@ -238,11 +212,9 @@ export default function AdminProducts() {
 
   useEffect(() => {
     void load()
-    Promise.all([catalogService.getAllCollections(), catalogService.getAllExclusives()])
-      .then(([c, x]) => {
-        setCollections(c)
-        setExclusives(x)
-      })
+    catalogService
+      .getAllCollections()
+      .then(setCollections)
       .catch(() => undefined)
   }, [])
 
@@ -352,10 +324,15 @@ export default function AdminProducts() {
         subcategory: form.subcategory || null,
         gender: form.gender,
         collection_id: form.collection_id || null,
-        is_exclusive: form.is_exclusive,
-        exclusive_id: form.is_exclusive ? form.exclusive_id || null : null,
         status: form.status,
-        stock: Number(form.stock) || 0,
+        low_stock_threshold: Math.max(0, Math.round(Number(form.low_stock_threshold) || 0)),
+        // First quantities on creation only; afterwards the stock moves through the Stock page (each change logged).
+        ...(editing
+          ? {}
+          : {
+              stock: Number(form.stock) || 0,
+              size_stock: Object.fromEntries(form.sizes.map((sz) => [sz, Math.max(0, Math.round(Number(form.size_stock[sz]) || 0))])),
+            }),
         sizes: category.sizeSystem === 'one-size' && form.sizes.length === 0 ? [] : form.sizes,
         colors: form.colors,
         materials: form.materials || null,
@@ -364,12 +341,7 @@ export default function AdminProducts() {
         is_featured: form.is_featured,
         is_active: form.is_active,
         release_date: form.release_date || null,
-        series_size: Number(form.series_size) > 0 ? Math.round(Number(form.series_size)) : null,
-        preorder_goal: Number(form.preorder_goal) > 0 ? Math.round(Number(form.preorder_goal)) : null,
-        preorder_deadline: form.preorder_deadline ? new Date(form.preorder_deadline).toISOString() : null,
         notify_subscribers: form.notify_subscribers,
-        // Only sent when used, so shops that never turn a piece keep working before the column exists.
-        ...(form.spin_frames.length > 0 || editing?.spin_frames?.length ? { spin_frames: form.spin_frames } : {}),
       }
       const saved = editing ? await productsService.update(editing.id, payload) : await productsService.create(payload)
 
@@ -486,11 +458,6 @@ export default function AdminProducts() {
                             <p className="flex items-center gap-1.5 truncate font-medium">
                               {p.is_featured && <HiStar className="h-4 w-4 flex-shrink-0 text-gold" aria-label="Mis en avant" />}
                               {p.name}
-                              {p.is_exclusive && (
-                                <span className="flex-shrink-0 rounded-full bg-gold-gradient px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-black" title={p.exclusive ? `Exclu ${p.exclusive.name}` : 'Exclu'}>
-                                  Exclu
-                                </span>
-                              )}
                             </p>
                             <p className="text-xs text-gray-500">{p.collection?.name ?? getCategory(p.category)?.label ?? '—'}</p>
                             {untaggedPhotos(p.colors, p.product_media ?? []) > 0 && (
@@ -514,7 +481,13 @@ export default function AdminProducts() {
                       </td>
                       <td className="max-w-[140px] truncate p-4 text-xs text-gray-400">{p.sizes.length ? p.sizes.join(', ') : 'TU'}</td>
                       <td className="p-4">
-                        <span className={clsx(p.stock === 0 ? 'text-red-400' : p.stock <= 3 ? 'text-amber-400' : 'text-gray-300')}>{p.stock}</span>
+                        <Link
+                          to={`/admin/stock?q=${encodeURIComponent(p.name)}`}
+                          className={clsx('hover:underline', totalStock(p) === 0 ? 'text-red-400' : totalStock(p) <= (p.low_stock_threshold ?? 3) ? 'text-amber-400' : 'text-gray-300')}
+                          title="Gérer le stock"
+                        >
+                          {totalStock(p)}
+                        </Link>
                       </td>
                       <td className="p-4 text-xs text-gray-400">{STATUS_LABELS[p.status]}</td>
                       <td className="p-4">
@@ -533,14 +506,6 @@ export default function AdminProducts() {
                           <button onClick={() => quickToggle(p, { is_featured: !p.is_featured })} className={clsx('rounded-lg p-2 hover:bg-white/5', p.is_featured ? 'text-gold' : 'text-gray-500')} aria-label="Mettre en avant">
                             <HiSparkles className="h-4 w-4" />
                           </button>
-                          <Link
-                            to={`/admin/products/${p.id}/3d`}
-                            className={clsx('rounded-lg p-2 hover:bg-white/5', p.model_3d ? 'text-gold' : 'text-gray-500 hover:text-white')}
-                            aria-label="Vue 3D"
-                            title={p.model_3d ? 'Vue 3D (en place)' : 'Ajouter une vue 3D'}
-                          >
-                            <HiCube className="h-4 w-4" />
-                          </Link>
                           <button onClick={() => startEdit(p)} className="rounded-lg p-2 text-gray-400 hover:bg-white/5 hover:text-white" aria-label="Modifier">
                             <HiPencil className="h-4 w-4" />
                           </button>
@@ -615,7 +580,7 @@ export default function AdminProducts() {
             <div className="grid gap-5 sm:grid-cols-3">
               <Input label="Prix (FCFA)" required type="number" min={100} value={form.price} onChange={(e) => set('price', e.target.value)} />
               <Input label="Prix barré" type="number" value={form.compare_at_price} onChange={(e) => set('compare_at_price', e.target.value)} hint="Optionnel — affiche une promo" />
-              <Input label="Stock" type="number" min={0} value={form.stock} onChange={(e) => set('stock', e.target.value)} />
+              <Input label="Alerte stock bas" type="number" min={0} value={form.low_stock_threshold} onChange={(e) => set('low_stock_threshold', e.target.value)} hint="Signalé quand il en reste autant ou moins" />
             </div>
             <div className="space-y-1.5">
               <label htmlFor="product-collection" className="block text-xs font-medium uppercase tracking-[0.15em] text-gray-300">
@@ -629,35 +594,6 @@ export default function AdminProducts() {
                   </option>
                 ))}
               </select>
-            </div>
-            <div className={clsx('rounded-2xl border p-4 transition-colors', form.is_exclusive ? 'border-gold/60 bg-gold/5' : 'border-white/10')}>
-              <label className="flex cursor-pointer items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={form.is_exclusive}
-                  onChange={(e) => setForm((f) => ({ ...f, is_exclusive: e.target.checked, exclusive_id: e.target.checked ? f.exclusive_id : '' }))}
-                  className="mt-1 h-4 w-4 accent-[#D4AF37]"
-                />
-                <span>
-                  <span className="block text-sm font-semibold uppercase tracking-[0.15em] text-gold">Exclu</span>
-                  <span className="text-xs text-gray-400">
-                    Pièce rare : affichée uniquement sur la page Exclusivités (pas sur l'accueil ni dans la boutique), mais toujours accessible par son lien et la recherche.
-                  </span>
-                </span>
-              </label>
-              {form.is_exclusive && (
-                <div className="mt-4 space-y-1.5">
-                  <label className="block text-xs font-medium uppercase tracking-[0.15em] text-gray-300">Exclusivité</label>
-                  <select value={form.exclusive_id} onChange={(e) => set('exclusive_id', e.target.value)} className="field">
-                    <option value="">{exclusives.length ? 'Autres exclusivités (sans groupe)' : 'Créez une exclusivité dans Catalogue → Exclusivités'}</option>
-                    {exclusives.map((x) => (
-                      <option key={x.id} value={x.id}>
-                        Exclu {x.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -726,29 +662,40 @@ export default function AdminProducts() {
               <Input label="Date de sortie" type="date" value={form.release_date?.slice(0, 10)} onChange={(e) => set('release_date', e.target.value)} />
             </div>
             <div className="rounded-2xl border border-white/10 p-4">
-              <p className="text-xs font-medium uppercase tracking-[0.15em] text-gray-300">Série numérotée</p>
-              <p className="mt-1 text-xs text-gray-500">
-                Nombre total de pièces de la série. Chaque pièce reçoit son numéro (« N° 27 / 50 ») dès l’acompte payé : il s’affiche au client et sur la commande, à reporter sur l’étiquette. Quand
-                tous les numéros sont attribués, la pièce reste visible, marquée « Épuisée — série complète ». Laissez vide pour une pièce non numérotée.
-              </p>
-              <div className="mt-4 grid gap-5 sm:grid-cols-2">
-                <Input label="Pièces dans la série" type="number" min={1} inputMode="numeric" value={form.series_size} onChange={(e) => set('series_size', e.target.value)} placeholder="Ex : 50" />
-                {editing?.series_size ? (
-                  <p className="self-end pb-3 text-sm text-gray-400">
-                    Déjà numérotées : <span className="text-white">{editing.pieces_numbered ?? 0}</span> / {editing.series_size}
-                  </p>
-                ) : null}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-white/10 p-4">
-              <p className="text-xs font-medium uppercase tracking-[0.15em] text-gray-300">Jauge de précommandes</p>
-              <p className="mt-1 text-xs text-gray-500">
-                La série est fabriquée quand ce nombre de pièces est payé. La fiche produit affiche « 14 / 30 pièces » et la date de clôture. Laissez vide pour ne pas afficher de jauge.
-              </p>
-              <div className="mt-4 grid gap-5 sm:grid-cols-2">
-                <Input label="Objectif (pièces)" type="number" min={1} inputMode="numeric" value={form.preorder_goal} onChange={(e) => set('preorder_goal', e.target.value)} placeholder="Ex : 30" />
-                <Input label="Clôture des précommandes" type="datetime-local" value={form.preorder_deadline} onChange={(e) => set('preorder_deadline', e.target.value)} />
-              </div>
+              <p className="text-xs font-medium uppercase tracking-[0.15em] text-gray-300">Stock</p>
+              {editing ? (
+                <p className="mt-2 text-sm text-gray-400">
+                  En stock : <span className="text-white">{totalStock(editing)}</span>
+                  {editing.sizes.length > 0 && <> ({editing.sizes.map((sz) => `${sz} : ${editing.size_stock?.[sz] ?? 0}`).join(' · ')})</>}.{' '}
+                  Les quantités se modifient depuis la page{' '}
+                  <Link to={`/admin/stock?q=${encodeURIComponent(editing.name)}`} className="text-gold underline">
+                    Stock
+                  </Link>{' '}
+                  (réassort, vente en boutique, correction) : chaque mouvement y est enregistré.
+                </p>
+              ) : form.sizes.length === 0 ? (
+                <div className="mt-4 max-w-xs">
+                  <Input label="Quantité en boutique" type="number" min={0} inputMode="numeric" value={form.stock} onChange={(e) => set('stock', e.target.value)} />
+                </div>
+              ) : (
+                <>
+                  <p className="mt-1 text-xs text-gray-500">Quantité en boutique pour chaque {sizeSystem.label.toLowerCase()}.</p>
+                  <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5">
+                    {form.sizes.map((sz) => (
+                      <Input
+                        key={sz}
+                        label={sz}
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        value={form.size_stock[sz] ?? ''}
+                        onChange={(e) => setForm((f) => ({ ...f, size_stock: { ...f.size_stock, [sz]: e.target.value } }))}
+                        placeholder="0"
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -829,9 +776,6 @@ export default function AdminProducts() {
                 Associez chaque photo à sa couleur : quand le client choisit « {form.colors[0]} », seules ses photos (et celles « Toutes couleurs ») s’affichent.
               </p>
             )}
-            <div className="border-t border-white/10 pt-6">
-              <FramesField frames={form.spin_frames} onChange={(frames) => set('spin_frames', frames)} folder="products" />
-            </div>
           </div>
         )}
 

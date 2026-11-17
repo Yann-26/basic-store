@@ -1,4 +1,4 @@
-import { normalizeCategory, normalizeSizes, parseProduct3D, type Gender, type Product, type ProductMedia } from '@trs/shared'
+import { normalizeCategory, normalizeSizeStock, normalizeSizes, type Gender, type Product, type ProductMedia } from '@trs/shared'
 
 type Row = Record<string, unknown>
 
@@ -23,7 +23,6 @@ export function toProductMedia(row: Row): ProductMedia {
 export function toProduct(row: Row): Product {
   const brand = (row.brands ?? null) as Product['brand']
   const collection = (row.collections ?? null) as Product['collection']
-  const exclusive = (row.exclusives ?? null) as Product['exclusive']
   const media = Array.isArray(row.product_media) ? (row.product_media as Row[]).map(toProductMedia) : []
   media.sort((a, b) => Number(b.is_main) - Number(a.is_main) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
   const gender = GENDERS.includes(row.gender as Gender) ? (row.gender as Gender) : null
@@ -50,18 +49,11 @@ export function toProduct(row: Row): Product {
     release_date: (row.release_date as string) ?? null,
     brand_id: (row.brand_id as string) ?? null,
     collection_id: (row.collection_id as string) ?? null,
-    is_exclusive: Boolean(row.is_exclusive),
-    exclusive_id: (row.exclusive_id as string) ?? null,
     brand,
     collection,
-    exclusive,
     product_media: media,
-    spin_frames: Array.isArray(row.spin_frames) ? (row.spin_frames as unknown[]).filter((f): f is string => typeof f === 'string') : [],
-    model_3d: parseProduct3D(row.model_3d),
-    series_size: row.series_size == null ? null : Number(row.series_size),
-    pieces_numbered: Number(row.pieces_numbered) || 0,
-    preorder_goal: row.preorder_goal == null ? null : Number(row.preorder_goal),
-    preorder_deadline: (row.preorder_deadline as string) ?? null,
+    size_stock: normalizeSizeStock(normalizeSizes(row.sizes), row.size_stock),
+    low_stock_threshold: row.low_stock_threshold == null ? 3 : Number(row.low_stock_threshold),
     created_at: row.created_at as string | undefined,
     updated_at: row.updated_at as string | undefined,
   }

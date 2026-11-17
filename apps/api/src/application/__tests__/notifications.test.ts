@@ -38,11 +38,11 @@ describe('account notifications', () => {
     await flush()
     const subjects = vi.mocked(mailer.send).mock.calls.map((c) => c[0].subject)
     expect(subjects).toEqual([
-      'Bienvenue chez SCION CARON ✨',
+      'Bienvenue chez Basic Store ✨',
       'Votre mot de passe a été modifié',
       'Votre compte a été suspendu',
       'Votre compte est de nouveau actif',
-      'Vous êtes administrateur de SCION CARON',
+      'Vous êtes administrateur de Basic Store',
       'Double authentification réinitialisée',
     ])
     expect(vi.mocked(mailer.send).mock.calls[2]![0].html).toContain('help@shop.ci')

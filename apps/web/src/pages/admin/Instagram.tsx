@@ -298,7 +298,6 @@ export default function AdminInstagram() {
                           >
                             {mainImage(p) ? <img src={mainImage(p)!} alt="" className="h-8 w-8 rounded object-cover" /> : <span className="h-8 w-8 rounded bg-dark-700" />}
                             <span className="flex-1 truncate">{p.name}</span>
-                            {p.is_exclusive && <span className="text-[10px] uppercase text-gold">Exclu</span>}
                           </button>
                         </li>
                       ))}

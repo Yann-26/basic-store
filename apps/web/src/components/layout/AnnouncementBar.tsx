@@ -10,7 +10,7 @@ export default function AnnouncementBar({ text }: { text: string }) {
   if (parts.length === 0) return null
 
   return (
-    <div className="relative z-50 bg-dark-700 text-gray-300" role="note">
+    <div className="relative z-50 bg-[#111] text-[#F2EEE7]" role="note">
       <p className="container-custom flex h-8 items-center justify-center truncate text-center text-[11px] tracking-[0.04em]">
         <span className="md:hidden">{parts[0]}</span>
         <span className="hidden md:inline">{parts.join('  ·  ')}</span>

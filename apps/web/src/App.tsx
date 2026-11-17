@@ -1,7 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import BrandEffects from './components/layout/BrandEffects'
 import Layout from './components/layout/Layout'
-import PreorderSidebar from './components/preorder/PreorderSidebar'
+import CartDrawer from './components/cart/CartDrawer'
 import PageLoader from './components/ui/PageLoader'
 import RequireAuth from './components/auth/RequireAuth'
 import { lazyPage } from './core/lazy'
@@ -10,16 +10,13 @@ import Collection from './pages/Collection'
 import Product from './pages/Product'
 
 // Secondary storefront pages
-const Preorder = lazyPage(() => import('./pages/Preorder'))
-const PreorderCheckout = lazyPage(() => import('./pages/PreorderCheckout'))
-const PreorderConfirmation = lazyPage(() => import('./pages/PreorderConfirmation'))
+const Cart = lazyPage(() => import('./pages/Cart'))
+const Checkout = lazyPage(() => import('./pages/Checkout'))
+const OrderConfirmation = lazyPage(() => import('./pages/OrderConfirmation'))
 const TrackOrder = lazyPage(() => import('./pages/TrackOrder'))
 const Wishlist = lazyPage(() => import('./pages/Wishlist'))
-const Exclusives = lazyPage(() => import('./pages/Exclusives'))
 const RisingStars = lazyPage(() => import('./pages/RisingStars'))
-const ExclusiveDetail = lazyPage(() => import('./pages/ExclusiveDetail'))
 const About = lazyPage(() => import('./pages/About'))
-const Drops = lazyPage(() => import('./pages/Drops'))
 const FAQ = lazyPage(() => import('./pages/FAQ'))
 const Contact = lazyPage(() => import('./pages/Contact'))
 const Login = lazyPage(() => import('./pages/Login'))
@@ -41,7 +38,7 @@ const AdminLayout = lazyPage(() => import('./components/layout/AdminLayout'))
 const AdminLogin = lazyPage(() => import('./pages/admin/Login'))
 const AdminDashboard = lazyPage(() => import('./pages/admin/Dashboard'))
 const AdminProducts = lazyPage(() => import('./pages/admin/Products'))
-const AdminProduct3D = lazyPage(() => import('./pages/admin/Product3D'))
+const AdminStock = lazyPage(() => import('./pages/admin/Stock'))
 const AdminCatalog = lazyPage(() => import('./pages/admin/Catalog'))
 const AdminOrders = lazyPage(() => import('./pages/admin/Orders'))
 const AdminOrderTicket = lazyPage(() => import('./pages/admin/OrderTicket'))
@@ -60,7 +57,7 @@ export default function App() {
   return (
     <>
       <BrandEffects />
-      <PreorderSidebar />
+      <CartDrawer />
       <PageLoader>
         <Routes>
           <Route path="/admin/login" element={<AdminLogin />} />
@@ -70,21 +67,18 @@ export default function App() {
             <Route path="collection" element={<Collection />} />
             <Route path="product/:id" element={<Product />} />
             <Route path="wishlist" element={<Wishlist />} />
-            <Route path="exclusivites" element={<Exclusives />} />
             <Route path="looks" element={<RisingStars />} />
             <Route path="rising-stars" element={<RisingStars />} />
-            <Route path="drops" element={<Drops />} />
-            <Route path="exclusivites/:slug" element={<ExclusiveDetail />} />
-            <Route path="preorder" element={<Preorder />} />
+            <Route path="panier" element={<Cart />} />
             <Route
-              path="preorder/checkout"
+              path="commande"
               element={
-                <RequireAuth reason="Connectez-vous pour finaliser votre précommande.">
-                  <PreorderCheckout />
+                <RequireAuth reason="Connectez-vous pour finaliser votre commande.">
+                  <Checkout />
                 </RequireAuth>
               }
             />
-            <Route path="preorder/confirmation/:preorderNumber" element={<PreorderConfirmation />} />
+            <Route path="commande/confirmation/:preorderNumber" element={<OrderConfirmation />} />
             <Route path="payment/callback" element={<PaymentCallback />} />
             <Route path="track" element={<TrackOrder />} />
             <Route path="about" element={<About />} />
@@ -108,7 +102,7 @@ export default function App() {
             <Route
               path="payer/:preorderNumber"
               element={
-                <RequireAuth reason="Connectez-vous pour payer le solde de votre commande.">
+                <RequireAuth reason="Connectez-vous pour payer votre commande.">
                   <PayBalance />
                 </RequireAuth>
               }
@@ -134,7 +128,7 @@ export default function App() {
           >
             <Route index element={<AdminDashboard />} />
             <Route path="products" element={<AdminProducts />} />
-            <Route path="products/:id/3d" element={<AdminProduct3D />} />
+            <Route path="stock" element={<AdminStock />} />
             <Route path="catalog" element={<AdminCatalog />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="orders/:id/ticket" element={<AdminOrderTicket />} />

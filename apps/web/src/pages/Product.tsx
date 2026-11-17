@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import clsx from 'clsx'
@@ -23,9 +23,8 @@ import {
   getCategory,
   GENDERS,
   photosOfColor,
-  preordersClosed,
-  seriesComplete,
-  seriesLeft,
+  isOutOfStock,
+  stockForSize,
   sameColor,
   ONE_SIZE,
   type Product as ProductType,
@@ -33,19 +32,13 @@ import {
 import { catalogService } from '../services/catalogService'
 import ProductReviews from '../components/reviews/ProductReviews'
 
-// three.js and the model arrive in their own files, only for pieces with a 3D model.
-const ModelViewer = lazy(() => import('../components/three/ModelViewer'))
-import { usePreorder } from '../context/PreorderContext'
+import { useCart } from '../context/CartContext'
 import { useSettings } from '../context/SettingsContext'
 import { mainImage, useWishlist } from '../context/WishlistContext'
 import { useRecentlyViewed } from '../hooks/useRecentlyViewed'
 import { whatsappLink } from '../utils/constants'
 import ProductCard, { productBadge } from '../components/products/ProductCard'
 import SizeGuide from '../components/products/SizeGuide'
-import PreorderGauge from '../components/products/PreorderGauge'
-import SeriesNotice from '../components/products/SeriesNotice'
-import DropNotice from '../components/drops/DropNotice'
-import { dropDateLabel, useDropAccess } from '../components/drops/useDropAccess'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Spinner from '../components/ui/Spinner'
@@ -76,13 +69,11 @@ export default function Product() {
   const [loading, setLoading] = useState(true)
   const [size, setSize] = useState<string | null>(null)
   const [color, setColorState] = useState<string | null>(null)
-  const [viewerFailed, setViewerFailed] = useState(false)
   const [params, setParams] = useSearchParams()
   const mainPhoto = useRef<HTMLDivElement>(null)
-  const viewer3d = useRef<HTMLDivElement>(null)
   const [quantity, setQuantity] = useState(1)
   const [guideOpen, setGuideOpen] = useState(false)
-  const { addItem } = usePreorder()
+  const { addItem } = useCart()
   const { settings } = useSettings()
   const { has, toggle } = useWishlist()
   const { items: recent, track } = useRecentlyViewed()
@@ -114,9 +105,6 @@ export default function Product() {
     }
   }, [slug, track])
 
-  // The piece's drop: closed before it, early access for the list, then open (kept current).
-  const dropGate = useDropAccess(product?.drop)
-
   if (loading) {
     return (
       <div className="py-40">
@@ -146,17 +134,15 @@ export default function Product() {
   const cover = (color && firstPhotoOf(color)) || mainImage(product)
   const colorPhotos = product.colors.length > 1 && product.colors.some((c) => firstPhotoOf(c))
 
-  const model3d = product.model_3d?.enabled && !viewerFailed ? product.model_3d : null
-
   const setColor = (c: string) => {
     if (c === color) return
     setColorState(c)
     const next = new URLSearchParams(params)
     next.set('couleur', c)
     setParams(next, { replace: true, preventScrollReset: true })
-    // On phones the photo (or the 3D piece) sits above the colour picker: bring it into view so the change is seen.
-    const photo = model3d ? viewer3d.current : mainPhoto.current
-    if (!photo || (!model3d && !firstPhotoOf(c))) return
+    // On phones the photo sits above the colour picker: bring it into view so the change is seen.
+    const photo = mainPhoto.current
+    if (!photo || !firstPhotoOf(c)) return
     const { top, bottom } = photo.getBoundingClientRect()
     const header = Math.max(0, document.querySelector('header')?.getBoundingClientRect().bottom ?? 0)
     if (top < header || bottom > window.innerHeight) {
@@ -169,21 +155,19 @@ export default function Product() {
   const sizeLabel = category?.sizeSystem === 'shoes' ? 'Pointure' : 'Taille'
   const discount = discountPercent(product.price, product.compare_at_price)
   const badge = productBadge(product)
-  const complete = seriesComplete(product)
-  const soldOut = product.status === 'unavailable' || complete
-  // At most what the numbered series has left (and 10 per line).
-  const maxQuantity = Math.max(1, Math.min(10, seriesLeft(product) ?? 10))
-  const closed = preordersClosed(product)
+  const soldOut = isOutOfStock(product)
+  // What the shop has of the chosen size (and 10 per line at most).
+  const left = size ? stockForSize(product, size) : null
+  const maxQuantity = Math.max(1, Math.min(10, left ?? 10))
   const liked = has(product.id)
   const needsColor = product.colors.length > 1 && !color
-  const canAdd = !soldOut && !closed && dropGate.canOrder && !!size && !needsColor
+  const canAdd = !soldOut && !!size && (left ?? 0) > 0 && !needsColor
   const recentOthers = recent.filter((r) => r.id !== product.id).slice(0, 4)
 
   const add = () => {
-    if (closed) return toast.error('Les précommandes de cette pièce sont closes')
     if (!size) return toast.error(`Choisissez votre ${sizeLabel.toLowerCase()}`)
     if (needsColor) return toast.error('Choisissez une couleur')
-    addItem({ id: product.id, slug: product.slug, name: product.name, price: product.price, image: cover, size, color: color ?? undefined, category: product.category }, quantity)
+    addItem({ id: product.id, slug: product.slug, name: product.name, price: product.price, image: cover, size, color: color ?? undefined, category: product.category, maxQuantity: left ?? undefined }, Math.min(quantity, maxQuantity))
   }
 
   const share = async () => {
@@ -220,7 +204,7 @@ export default function Product() {
               '@type': 'Offer',
               priceCurrency: 'XOF',
               price: product.price,
-              availability: soldOut || closed ? 'https://schema.org/OutOfStock' : 'https://schema.org/PreOrder',
+              availability: soldOut ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
             },
           })}
         </script>
@@ -249,21 +233,6 @@ export default function Product() {
         <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-16">
           {/* Gallery: every photo shown large, one after the other (swipe on phones) */}
           <div className="min-w-0 space-y-3 lg:space-y-6">
-          {model3d && (
-            <div ref={viewer3d} className="scroll-mt-24">
-              <Suspense fallback={<div className="aspect-[4/5] w-full animate-pulse rounded-3xl bg-dark-800 lg:aspect-square" />}>
-                <ModelViewer
-                  model={model3d}
-                  name={product.name}
-                  colors={product.colors}
-                  color={color}
-                  onColorChange={setColor}
-                  onFail={() => setViewerFailed(true)}
-                  className="aspect-[4/5] w-full rounded-3xl lg:aspect-square"
-                />
-              </Suspense>
-            </div>
-          )}
           <div ref={mainPhoto} className="no-scrollbar -mx-4 flex min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto px-4 lg:mx-0 lg:snap-none lg:flex-col lg:gap-6 lg:overflow-visible lg:px-0">
             {media.length === 0 && (
               <div className="aspect-[4/5] w-full flex-none overflow-hidden rounded-3xl bg-dark-700">
@@ -320,25 +289,20 @@ export default function Product() {
                 </>
               )}
             </div>
-            {(product.recent_preorders ?? 0) > 0 && (
-              <p className="mt-3 flex items-center gap-2 text-sm">
-                <span aria-hidden className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold opacity-60 motion-reduce:hidden" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-gold" />
-                </span>
-                <span>
-                  <span className="font-semibold tabular-nums">{product.recent_preorders}</span> précommande{product.recent_preorders! > 1 ? 's' : ''} ces dernières 24 h
-                </span>
-              </p>
-            )}
             <p className="mt-2 text-sm text-gray-400">
-              {product.preorder_goal
-                ? `Paiement sécurisé en ligne. Fabrication dès que la série est complète, puis livraison sous ${settings.delivery_days_min} à ${settings.delivery_days_max} jours.`
-                : `Paiement sécurisé en ligne, livraison sous ${settings.delivery_days_min} à ${settings.delivery_days_max} jours.`}
+              Paiement à la livraison ou en ligne · livraison partout en Côte d’Ivoire sous {settings.delivery_days_min} à {settings.delivery_days_max} jours.
             </p>
-            {product.drop && <DropNotice drop={product.drop} phase={dropGate.phase} eligible={dropGate.eligible} signedIn={dropGate.signedIn} />}
-            <SeriesNotice product={product} />
-            {!complete && <PreorderGauge product={product} />}
+            <p className={clsx('mt-3 text-sm', soldOut ? 'text-red-700' : left !== null && left <= 3 ? 'text-amber-700' : 'text-emerald-700')}>
+              {soldOut
+                ? 'Épuisé pour le moment'
+                : left === null
+                  ? 'En stock en boutique'
+                  : left <= 0
+                    ? `Taille ${size} épuisée — choisissez une autre taille`
+                    : left <= 3
+                      ? `Plus que ${left} en stock${oneSize ? '' : ` en ${size}`}`
+                      : 'En stock'}
+            </p>
 
             {product.colors.length > 0 && (
               <div className="mt-8">
@@ -401,19 +365,27 @@ export default function Product() {
                   </button>
                 </div>
                 <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-                  {sizes.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => setSize(s)}
-                      aria-pressed={size === s}
-                      className={clsx(
-                        'rounded-xl border py-3 text-sm font-medium transition-all',
-                        size === s ? 'border-gold bg-gold text-primary-black' : 'border-white/10 hover:border-gold/60',
-                      )}
-                    >
-                      {s}
-                    </button>
-                  ))}
+                  {sizes.map((s) => {
+                    const out = stockForSize(product, s) <= 0
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => {
+                          setSize(s)
+                          setQuantity(1)
+                        }}
+                        aria-pressed={size === s}
+                        aria-label={out ? `${s}, épuisé` : s}
+                        className={clsx(
+                          'border py-3 text-sm font-medium transition-all',
+                          size === s ? 'border-gold bg-gold text-primary-black' : 'border-dark-500 hover:border-gold',
+                          out && 'text-gray-500 line-through',
+                        )}
+                      >
+                        {s}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -429,7 +401,7 @@ export default function Product() {
                 </button>
               </div>
               <Button size="lg" className="flex-1" icon={HiOutlineShoppingBag} onClick={add} disabled={!canAdd}>
-                {complete ? 'Épuisé — série complète' : soldOut ? 'Épuisé' : canAdd && dropGate.phase === 'reserve' ? `Réserver · acompte ${settings.deposit_percentage} %` : !dropGate.canOrder && product.drop ? (dropGate.phase === 'early' ? 'Accès anticipé réservé aux inscrits' : `Disponible le ${dropDateLabel(product.drop.starts_at).replace(/ à .*/, '')}`) : closed ? 'Précommandes closes' : !size ? `Choisir ${sizeLabel.toLowerCase()}` : needsColor ? 'Choisir la couleur' : 'Ajouter à ma sélection'}
+                {soldOut ? 'Épuisé' : !size ? `Choisir ${sizeLabel.toLowerCase()}` : (left ?? 0) <= 0 ? 'Taille épuisée' : needsColor ? 'Choisir la couleur' : 'Ajouter au panier'}
               </Button>
             </div>
             <a href={whatsappLink(settings.store_whatsapp, waText)} target="_blank" rel="noopener noreferrer" className="mt-3 block">
@@ -445,11 +417,11 @@ export default function Product() {
               </li>
               <li className="rounded-2xl border border-white/5 p-3">
                 <HiShieldCheck className="mx-auto mb-2 h-5 w-5 text-gold" />
-                Qualité contrôlée
+                Qualité à bon prix
               </li>
               <li className="rounded-2xl border border-white/5 p-3">
                 <HiCreditCard className="mx-auto mb-2 h-5 w-5 text-gold" />
-                Paiement sécurisé
+                Payez à la livraison
               </li>
             </ul>
 
@@ -469,10 +441,10 @@ export default function Product() {
                   </ul>
                 </Accordion>
               )}
-              <Accordion title="Précommande & livraison">
+              <Accordion title="Livraison & paiement">
                 <p>
-                  {settings.deposit_percentage < 100 ? `Vous réglez un acompte de ${settings.deposit_percentage} % à la précommande, le solde avant la livraison.` : 'Vous réglez le montant total à la commande.'} Votre pièce est préparée, contrôlée puis livrée sous {settings.delivery_days_min} à{' '}
-                  {settings.delivery_days_max} jours. Suivez chaque étape depuis la page <Link to="/track" className="text-gold underline">Suivi</Link>.
+                  Livraison à Abidjan {settings.delivery_fee_abidjan > 0 ? formatCurrency(settings.delivery_fee_abidjan) : 'offerte'} (24 à 48 h), à l’intérieur du pays {settings.delivery_fee_interior > 0 ? formatCurrency(settings.delivery_fee_interior) : 'offerte'}, ou retrait gratuit en boutique à Angré.
+                  Payez à la livraison (espèces, Mobile Money) ou en ligne. Suivez votre commande depuis la page <Link to="/track" className="text-gold underline">Suivi</Link>.
                 </p>
               </Accordion>
             </div>

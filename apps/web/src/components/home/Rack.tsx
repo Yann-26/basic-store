@@ -3,10 +3,9 @@ import { Link } from 'react-router-dom'
 import { AnimatePresence, LayoutGroup, motion, MotionConfig } from 'framer-motion'
 import clsx from 'clsx'
 import { HiXMark } from 'react-icons/hi2'
-import { effectiveSizes, formatCurrency, getCategory, ONE_SIZE, preordersClosed, seriesComplete, type Product } from '@trs/shared'
-import { usePreorder } from '../../context/PreorderContext'
+import { effectiveSizes, formatCurrency, getCategory, isOutOfStock, ONE_SIZE, stockForSize, type Product } from '@trs/shared'
+import { useCart } from '../../context/CartContext'
 import { mainImage } from '../../context/WishlistContext'
-import { dropPhase } from '../drops/useDropAccess'
 import { useSettings } from '../../context/SettingsContext'
 import { useProductsByIds } from '../../hooks/useProductsByIds'
 
@@ -43,15 +42,14 @@ function Hook() {
 /** The piece taken off the rail: large in the middle, the rail blurred behind, front/back, sizes, add. */
 function Detail({ hung, onClose }: { hung: Hung; onClose: () => void }) {
   const { product, image: front, back } = hung
-  const { addItem } = usePreorder()
+  const { addItem } = useCart()
   const [side, setSide] = useState<'front' | 'back'>('front')
   const [size, setSize] = useState('')
   const sizes = effectiveSizes(product.sizes)
   const oneSize = sizes.length === 1 && sizes[0] === ONE_SIZE
   const chosen = oneSize ? ONE_SIZE : size
   const sizeLabel = getCategory(product.category)?.sizeSystem === 'shoes' ? 'pointure' : 'taille'
-  const upcoming = ['closed', 'early'].includes(dropPhase(product.drop))
-  const unavailable = product.status === 'unavailable' || seriesComplete(product) || preordersClosed(product) || upcoming
+  const unavailable = isOutOfStock(product)
   // Several colours: the choice is made on the product page.
   const directAdd = !unavailable && product.colors.length <= 1
 
@@ -72,6 +70,7 @@ function Detail({ hung, onClose }: { hung: Hung; onClose: () => void }) {
       size: chosen,
       color: product.colors[0],
       category: product.category,
+      maxQuantity: stockForSize(product, chosen),
     })
   }
 
@@ -148,8 +147,9 @@ function Detail({ hung, onClose }: { hung: Hung; onClose: () => void }) {
                   type="button"
                   aria-pressed={size === s}
                   onClick={() => setSize(s)}
+                  disabled={stockForSize(product, s) <= 0}
                   className={clsx(
-                    'min-w-9 rounded-full border px-2.5 py-1 text-[11px] transition-colors',
+                    'min-w-9 rounded-full border px-2.5 py-1 text-[11px] transition-colors disabled:cursor-not-allowed disabled:line-through disabled:opacity-40',
                     size === s ? 'border-[#111] bg-[#111] text-[#fff]' : 'border-[#cfcfcf] text-[#3f3f3f] hover:border-[#111]',
                   )}
                 >
@@ -166,10 +166,10 @@ function Detail({ hung, onClose }: { hung: Hung; onClose: () => void }) {
               disabled={!chosen}
               className="mt-5 w-56 rounded-full bg-[#111] py-2.5 text-[11px] font-medium uppercase tracking-[0.14em] text-[#fff] transition-opacity disabled:opacity-30"
             >
-              {chosen ? 'Ajouter à ma sélection' : `Choisir une ${sizeLabel}`}
+              {chosen ? 'Ajouter au panier' : `Choisir une ${sizeLabel}`}
             </button>
           ) : (
-            unavailable && <p className="mt-5 text-[11px] uppercase tracking-[0.14em] text-[#777]">{seriesComplete(product) ? 'Épuisé — série complète' : upcoming ? 'Bientôt — voir la pièce' : 'Indisponible'}</p>
+            unavailable && <p className="mt-5 text-[11px] uppercase tracking-[0.14em] text-[#777]">Épuisé</p>
           )}
           <Link to={`/product/${product.slug}`} className="mt-3 text-[11px] uppercase tracking-[0.14em] text-[#3f3f3f] underline underline-offset-4 hover:text-[#111]">
             Voir la pièce

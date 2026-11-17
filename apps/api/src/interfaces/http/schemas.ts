@@ -3,7 +3,7 @@
  * at the edge, before anything reaches the application layer.
  */
 import { z } from 'zod'
-import { AUDIENCE_RANGES, CATEGORY_IDS, MANUAL_PAYMENT_METHODS, ORDER_STATUSES, PAYMENT_STATUSES, isValidPhone, normalizePhone } from '@trs/shared'
+import { AUDIENCE_RANGES, CATEGORY_IDS, CHECKOUT_PAYMENT_MODES, DELIVERY_ZONES, MANUAL_PAYMENT_METHODS, MANUAL_STOCK_REASONS, ORDER_STATUSES, PAYMENT_STATUSES, isValidPhone, normalizePhone } from '@trs/shared'
 
 const text = (max: number) => z.string().trim().max(max)
 const optionalText = (max: number) => text(max).optional().nullable()
@@ -90,7 +90,6 @@ export const productQuerySchema = z.object({
   gender: z.enum(['men', 'women', 'unisex', 'kids']).optional(),
   brand: text(100).optional(),
   collection: text(100).optional(),
-  exclusive: text(100).optional(),
   search: text(100).optional(),
   size: text(12).transform((s) => s.toUpperCase()).optional(),
   minPrice: z.coerce.number().min(0).optional(),
@@ -113,7 +112,11 @@ const productBase = {
   subcategory: optionalText(80),
   gender: z.enum(['men', 'women', 'unisex', 'kids']).optional().nullable(),
   status: z.enum(['available', 'unavailable', 'limited']).optional(),
+  /** Initial quantity of a product sold as one size (creation only; then through the stock page). */
   stock: z.coerce.number().int().min(0).max(1_000_000).optional(),
+  /** Initial quantity per size (creation only). */
+  size_stock: z.record(z.string().trim().max(12), z.coerce.number().int().min(0).max(100_000)).optional(),
+  low_stock_threshold: z.coerce.number().int().min(0).max(10_000).optional(),
   sizes: z.array(z.union([z.string(), z.number()]).transform(String)).max(40).optional(),
   colors: z.array(text(40)).max(30).optional(),
   materials: optionalText(300),
@@ -122,14 +125,8 @@ const productBase = {
   is_featured: z.boolean().optional(),
   is_active: z.boolean().optional(),
   release_date: z.string().trim().max(30).optional().nullable(),
-  series_size: z.coerce.number().int().min(1).max(100_000).optional().nullable(),
-  preorder_goal: z.coerce.number().int().min(1).max(100_000).optional().nullable(),
-  preorder_deadline: z.string().trim().max(40).optional().nullable(),
   brand_id: z.string().uuid().optional().nullable().or(z.literal('')),
   collection_id: z.string().uuid().optional().nullable().or(z.literal('')),
-  spin_frames: z.array(z.string().trim().url().max(2048)).max(72).optional(),
-  is_exclusive: z.boolean().optional(),
-  exclusive_id: z.string().uuid().optional().nullable().or(z.literal('')),
   /** Not stored: email the subscribers about this piece (default yes, 15 minutes after it is published). */
   notify_subscribers: z.boolean().optional(),
 }
@@ -157,17 +154,19 @@ export const collectionSchema = z.object({
   sort_order: z.coerce.number().int().min(0).optional(),
 })
 
-export const exclusiveSchema = z.object({
-  name: text(100).min(2),
-  description: optionalText(1000),
-  brand_id: z.string().uuid().optional().nullable().or(z.literal('')),
-  image_url: url.optional().nullable(),
-  banner_url: url.optional().nullable(),
-  is_active: z.boolean().optional(),
-  sort_order: z.coerce.number().int().min(0).optional(),
-})
-
 // ------------------------------------------------------------------ orders
+const createOrderItems = z
+  .array(
+    z.object({
+      product_id: z.string().uuid(),
+      size: z.union([z.string(), z.number()]).transform(String).optional().nullable(),
+      color: optionalText(40),
+      quantity: z.coerce.number().int().min(1).max(10),
+    }),
+  )
+  .min(1, 'Panier vide')
+  .max(30)
+
 export const createOrderSchema = z.object({
   customer: z.object({
     firstName: text(50).min(1, 'Prénom requis'),
@@ -175,24 +174,16 @@ export const createOrderSchema = z.object({
     phone,
     whatsapp: phone.optional().nullable().or(z.literal('').transform(() => null)),
     email: email.optional().nullable().or(z.literal('').transform(() => null)),
-    city: text(100).min(1, 'Ville requise'),
-    address: text(300).min(3, 'Adresse requise'),
+    city: text(100).min(1, 'Ville / commune requise'),
+    /** Pick-up in the shop needs no address. */
+    address: text(300).default(''),
     notes: optionalText(1000),
   }),
-  items: z
-    .array(
-      z.object({
-        product_id: z.string().uuid(),
-        size: z.union([z.string(), z.number()]).transform(String).optional().nullable(),
-        color: optionalText(40),
-        quantity: z.coerce.number().int().min(1).max(10),
-      }),
-    )
-    .min(1, 'Panier vide')
-    .max(30),
-  payment_method: text(40).min(1).default('paystack'),
+  items: createOrderItems,
+  payment_method: z.enum(CHECKOUT_PAYMENT_MODES).default('cash_on_delivery'),
+  delivery_zone: z.enum(DELIVERY_ZONES).default('abidjan'),
   promo_code: optionalText(40),
-})
+}).refine((o) => o.delivery_zone === 'pickup' || o.customer.address.length >= 3, { message: 'Adresse de livraison requise', path: ['customer', 'address'] })
 
 export const reviewSchema = z.object({
   product_id: z.string().uuid(),
@@ -213,22 +204,9 @@ export const reviewQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(30),
 })
 
-export const dropSchema = z.object({
-  title: text(120).min(2, 'Titre requis'),
-  description: text(1000).default(''),
-  image_url: z.string().url().max(500).optional().nullable().or(z.literal('').transform(() => null)).default(null),
-  starts_at: z.string().datetime({ offset: true }),
-  product_ids: z.array(z.string().uuid()).max(24).default([]),
-  location: text(160).default(''),
-  is_published: z.boolean().default(true),
-  preorders_open: z.boolean().default(true),
-})
-
-export const dropReminderSchema = z.object({ email })
-
 export const promoQuoteSchema = z.object({
   promo_code: text(40).min(1, 'Code requis'),
-  items: createOrderSchema.shape.items,
+  items: createOrderItems,
 })
 
 const dateOrNull = z
@@ -286,6 +264,28 @@ export const updateOrderSchema = z.object({
   location: optionalText(200),
   notes: optionalText(2000),
   notify_customer: z.boolean().optional(),
+})
+
+// ------------------------------------------------------------------- stock
+export const stockQuerySchema = z.object({
+  search: text(100).optional(),
+  low: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  page: z.coerce.number().int().min(1).max(1000).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+})
+
+export const stockMovementQuerySchema = z.object({
+  productId: z.string().uuid().optional(),
+  page: z.coerce.number().int().min(1).max(1000).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+})
+
+export const stockAdjustSchema = z.object({
+  product_id: z.string().uuid(),
+  size: z.string().trim().max(12).optional().nullable(),
+  delta: z.coerce.number().int().min(-100_000).max(100_000).refine((v) => v !== 0, 'Quantité requise'),
+  reason: z.enum(MANUAL_STOCK_REASONS),
+  note: optionalText(300),
 })
 
 export const orderNumberParam = z.object({ preorderNumber: text(20).min(5) })

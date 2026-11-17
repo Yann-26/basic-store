@@ -4,7 +4,6 @@ import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_REFERENCE_PREFIX,
   formatCurrency,
-  formatPieceNumbers,
   paymentProgress,
   type ManualPaymentMethod,
   type Order,
@@ -68,25 +67,9 @@ export function makePaymentUseCases(d: PaymentDeps) {
   const methodLabel = (method: PaymentMethod) => PAYMENT_METHOD_LABELS[method] ?? method
 
   /**
-   * Money received for an order (Wave or by hand): adds it to the order,
+   * Money received for an order (online, Wave or by hand): adds it to the order,
    * confirms a pending order, writes the timeline and emails a receipt.
    */
-  /** Numbers the order's pieces of numbered series once money is in; returns the lines numbered just now. */
-  async function numberPieces(order: Order) {
-    const already = new Set((order.order_items ?? []).filter((i) => (i.piece_numbers ?? []).length > 0).map((i) => i.id))
-    const rows = await d.orders.numberPieces(order.id).catch((error) => {
-      console.error(JSON.stringify({ level: 'error', msg: 'orders.number_pieces_failed', order: order.id, error: String(error) }))
-      return []
-    })
-    return rows
-      .filter((r) => r.piece_numbers.length > 0 && !already.has(r.order_item_id))
-      .map((r) => ({
-        name: order.order_items?.find((i) => i.id === r.order_item_id)?.product_name ?? 'Pièce',
-        label: formatPieceNumbers(r.piece_numbers, r.series_size),
-        over: r.series_size != null && r.piece_numbers.some((n) => n > r.series_size!),
-      }))
-  }
-
   async function creditOrder(orderId: string, amount: number, kind: PaymentKind, method: PaymentMethod) {
     const before = await d.orders.findById(orderId)
     const after = await d.orders.applyPayment(orderId, amount)
@@ -94,25 +77,22 @@ export function makePaymentUseCases(d: PaymentDeps) {
     const progress = paymentProgress({ total_price: after.total_price, amount_paid: after.amount_paid, payment_status: after.payment_status })
     const how = methodLabel(method).toLowerCase()
     const done = progress.outstanding === 0 ? ' — commande payée à 100 %' : ` — reste ${formatCurrency(progress.outstanding)}`
-    const pieces = amount > 0 ? await numberPieces(before) : []
 
     if (before.status === 'pending') {
       await d.orders.update(orderId, { status: 'confirmed' })
-      await d.orders.addTracking({ order_id: orderId, status: 'confirmed', notes: `${kind === 'deposit' ? 'Acompte' : 'Paiement'} reçu (${formatCurrency(amount)}, ${how}) — commande confirmée${done}` })
+      await d.orders.addTracking({ order_id: orderId, status: 'confirmed', notes: `Paiement reçu (${formatCurrency(amount)}, ${how}) — commande confirmée${done}` })
+    } else if (before.status === 'cancelled') {
+      // Paid after it was cancelled (late online payment): the shop must refund or reopen it by hand.
+      await d.orders.addTracking({
+        order_id: orderId,
+        status: 'cancelled',
+        notes: `⚠️ Paiement reçu après l’annulation : ${formatCurrency(amount)} (${how}) — à rembourser ou à traiter`,
+      })
     } else {
       await d.orders.addTracking({
         order_id: orderId,
         status: before.status,
-        notes: `${kind === 'deposit' ? 'Acompte' : 'Solde'} reçu : ${formatCurrency(amount)} (${how})${done}`,
-      })
-    }
-
-    if (pieces.length > 0) {
-      const over = pieces.filter((p) => p.over)
-      await d.orders.addTracking({
-        order_id: orderId,
-        status: before.status === 'pending' ? 'confirmed' : before.status,
-        notes: `Pièces numérotées : ${pieces.map((p) => `${p.name} ${p.label}`).join(' · ')}${over.length ? ' — attention : série dépassée, à vérifier' : ''}`,
+        notes: `${kind === 'deposit' ? 'Paiement' : 'Complément'} reçu : ${formatCurrency(amount)} (${how})${done}`,
       })
     }
 
@@ -131,7 +111,6 @@ export function makePaymentUseCases(d: PaymentDeps) {
             paid: progress.paid,
             outstanding: progress.outstanding,
             payUrl: payUrl(before),
-            pieces: pieces.map((p) => ({ name: p.name, label: p.label })),
           }),
         })
         .catch(() => false)
@@ -186,8 +165,9 @@ export function makePaymentUseCases(d: PaymentDeps) {
       if (order.status === 'cancelled') throw new ConflictError('Cette commande a été annulée')
       const progress = paymentProgress(order)
       if (progress.outstanding <= 0) throw new ConflictError('Cette commande est déjà payée à 100 %')
+      // Online payment always settles everything still due (no deposit any more).
       const kind: PaymentKind = progress.paid > 0 ? 'balance' : 'deposit'
-      const amount = kind === 'deposit' ? Math.min(order.deposit_amount, progress.outstanding) : progress.outstanding
+      const amount = progress.outstanding
       const email = order.customers?.email || user.email
       if (!email) throw new ValidationError('Email requis pour le paiement')
       if (!amount || amount < MIN_AMOUNT) throw new ValidationError(`Montant minimum : ${MIN_AMOUNT} FCFA`)
@@ -376,7 +356,7 @@ export function makePaymentUseCases(d: PaymentDeps) {
         (await d.mailer
           .send({
             to: email,
-            subject: `Solde à régler — ${order.preorder_number}`,
+            subject: `Reste à régler — ${order.preorder_number}`,
             html: balanceReminderEmail({
               preorderNumber: order.preorder_number,
               customerName: customerName(order),
@@ -387,7 +367,7 @@ export function makePaymentUseCases(d: PaymentDeps) {
             }),
           })
           .catch(() => false))
-      if (sent) await d.orders.addTracking({ order_id: order.id, status: order.status, notes: `Rappel de solde envoyé (${formatCurrency(progress.outstanding)})` })
+      if (sent) await d.orders.addTracking({ order_id: order.id, status: order.status, notes: `Rappel de paiement envoyé (${formatCurrency(progress.outstanding)})` })
       return { sent, email: email ?? null, outstanding: progress.outstanding, payUrl: payUrl(order) }
     },
 

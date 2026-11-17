@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Product } from '@trs/shared'
 import { makeCatalogUseCases, showcaseIds } from '../catalog'
-import type { BrandRepository, CollectionRepository, ExclusiveRepository, ProductRepository, SettingsRepository } from '../../ports'
+import type { BrandRepository, CollectionRepository, ProductRepository, SettingsRepository } from '../../ports'
 
 const A = '11111111-1111-4111-8111-111111111111'
 const B = '22222222-2222-4222-8222-222222222222'
@@ -14,7 +14,7 @@ function setup(setting: unknown, rows = [product(A), product(B), product(C, fals
     list: vi.fn(async () => ({ items: [product('oldest-1'), product('oldest-2')], total: 2 })),
   } as unknown as ProductRepository
   const settings = { getAll: vi.fn(async () => ({ showcase_product_ids: setting })), upsertMany: vi.fn() } as unknown as SettingsRepository
-  const uc = makeCatalogUseCases({ products, settings, brands: {} as BrandRepository, collections: {} as CollectionRepository, exclusives: {} as ExclusiveRepository })
+  const uc = makeCatalogUseCases({ products, settings, brands: {} as BrandRepository, collections: {} as CollectionRepository })
   return { uc, products }
 }
 
@@ -46,34 +46,10 @@ describe('collections without a brand', () => {
       update: vi.fn(async (_id, data) => ({ id: 'c1', ...data })),
     } as unknown as CollectionRepository
     const brands = { findById: vi.fn(async () => null) } as unknown as BrandRepository
-    const uc = makeCatalogUseCases({ products: {} as ProductRepository, settings: {} as SettingsRepository, brands, collections, exclusives: {} as ExclusiveRepository })
+    const uc = makeCatalogUseCases({ products: {} as ProductRepository, settings: {} as SettingsRepository, brands, collections })
     await expect(uc.createCollection({ name: 'Capsule 01' })).resolves.toMatchObject({ name: 'Capsule 01', brand_id: null })
     await uc.updateCollection('c1', { brand_id: '' })
     expect(collections.update).toHaveBeenCalledWith('c1', expect.objectContaining({ brand_id: null }))
     expect(brands.findById).not.toHaveBeenCalled()
-  })
-})
-
-describe('preorder gauge', () => {
-  function withProduct(p: Partial<Product>) {
-    const products = {
-      findByIdOrSlug: vi.fn(async () => ({ id: A, name: 'Manches longues', is_active: true, ...p }) as Product),
-      preorderPieces: vi.fn(async () => 14),
-    } as unknown as ProductRepository
-    const uc = makeCatalogUseCases({ products, settings: {} as SettingsRepository, brands: {} as BrandRepository, collections: {} as CollectionRepository, exclusives: {} as ExclusiveRepository })
-    return { uc, products }
-  }
-
-  it('counts the paid pieces of a piece sold to a goal', async () => {
-    const { uc, products } = withProduct({ preorder_goal: 30 })
-    await expect(uc.getProduct('manches-longues')).resolves.toMatchObject({ preorder_goal: 30, preorder_count: 14 })
-    expect(products.preorderPieces).toHaveBeenCalledWith(A)
-  })
-
-  it('does not count anything for a piece without a goal', async () => {
-    const { uc, products } = withProduct({ preorder_goal: null })
-    const got = await uc.getProduct('manches-longues')
-    expect(got.preorder_count).toBeUndefined()
-    expect(products.preorderPieces).not.toHaveBeenCalled()
   })
 })

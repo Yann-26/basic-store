@@ -1,8 +1,8 @@
 {
-  "name": "the-rising-star",
+  "name": "basic-store",
   "private": true,
   "version": "2.0.0",
-  "description": "THE RISING STAR — premium fashion, footwear & accessories store (monorepo)",
+  "description": "Basic Store — online shop with delivery, stock and order management (monorepo)",
   "workspaces": [
     "apps/*",
     "packages/*"
